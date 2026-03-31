@@ -1,8 +1,8 @@
 import Image from "next/image";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { getEngagementFresh } from "@/lib/data-store";
-import { getSessionUser, getUserEngagementId } from "@/lib/session";
+import { getSessionUser } from "@/lib/session";
+import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
@@ -10,10 +10,13 @@ export default async function AdminPage() {
   const user = await getSessionUser();
   if (!user || user.role !== "ADMIN") redirect("/login");
 
-  const engagementId = await getUserEngagementId();
-  if (!engagementId) redirect("/login");
-
-  const engagement = await getEngagementFresh(engagementId);
+  const engagements = await prisma.engagement.findMany({
+    orderBy: { createdAt: "desc" },
+    include: {
+      nodes: { orderBy: { sortOrder: "asc" } },
+      users: { include: { user: true } },
+    },
+  });
 
   return (
     <div className="min-h-screen bg-otm-light">
@@ -27,63 +30,60 @@ export default async function AdminPage() {
             &larr; View portal
           </Link>
         </div>
-        <span className="text-sm text-otm-gray">{engagement.clientName}</span>
       </header>
 
       <main className="max-w-4xl mx-auto px-6 py-8">
-        <h1 className="font-outfit font-bold text-otm-navy text-xl mb-6">
-          Manage Deliverables
-        </h1>
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="font-outfit font-bold text-otm-navy text-xl">
+            Engagements
+          </h1>
+          <Link
+            href="/admin/engagements/new"
+            className="bg-otm-teal text-white text-sm font-medium px-4 py-2 rounded hover:bg-otm-teal/90 transition-colors"
+          >
+            + New engagement
+          </Link>
+        </div>
 
         <div className="space-y-3">
-          {engagement.nodes.map((node) => (
-            <Link
-              key={node.nodeKey}
-              href={`/admin/nodes/${node.nodeKey}`}
-              className="block bg-white border border-gray-200 rounded-lg p-4 hover:border-otm-teal/50 transition-colors"
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-1">
+          {engagements.map((eng) => {
+            const completed = eng.nodes.filter((n) => n.status === "complete").length;
+            const clients = eng.users
+              .filter((u) => u.user.role === "CLIENT")
+              .map((u) => u.user.name || u.user.email);
+
+            return (
+              <Link
+                key={eng.id}
+                href={`/admin/engagements/${eng.id}`}
+                className="block bg-white border border-gray-200 rounded-lg p-4 hover:border-otm-teal/50 transition-colors"
+              >
+                <div className="flex items-center justify-between">
+                  <div>
                     <span className="font-outfit font-semibold text-otm-navy text-sm">
-                      {node.sortOrder}. {node.displayName}
+                      {eng.clientName}
                     </span>
-                    {node.isGate && (
-                      <span className="text-[10px] bg-red-50 text-red-700 px-1.5 py-0.5 rounded">
-                        Gate
-                      </span>
-                    )}
-                    {node.isConditional && (
-                      <span className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">
-                        Conditional
-                      </span>
-                    )}
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      {completed} of {eng.nodes.length} complete
+                      {clients.length > 0 && ` · ${clients.join(", ")}`}
+                    </p>
                   </div>
-                  <p className="text-xs text-gray-500 truncate max-w-lg">
-                    {node.execSummary
-                      ? node.execSummary.slice(0, 100) + "..."
-                      : "No summary yet"}
-                  </p>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] bg-otm-teal/10 text-otm-teal px-2 py-0.5 rounded-full">
+                      {eng.lifecycleStage}
+                    </span>
+                    <span className="text-gray-400 text-sm">&rarr;</span>
+                  </div>
                 </div>
-                <div className="flex items-center gap-3">
-                  <span
-                    className={`text-xs px-2 py-1 rounded-full font-medium ${
-                      node.status === "complete"
-                        ? "bg-otm-teal/10 text-otm-teal"
-                        : node.status === "active"
-                        ? "bg-blue-50 text-blue-600"
-                        : node.status === "flagged"
-                        ? "bg-amber-50 text-amber-700"
-                        : "bg-gray-100 text-gray-400"
-                    }`}
-                  >
-                    {node.status}
-                  </span>
-                  <span className="text-gray-400 text-sm">&rarr;</span>
-                </div>
-              </div>
-            </Link>
-          ))}
+              </Link>
+            );
+          })}
+
+          {engagements.length === 0 && (
+            <p className="text-sm text-gray-400 text-center py-8">
+              No engagements yet. Create one to get started.
+            </p>
+          )}
         </div>
       </main>
     </div>
