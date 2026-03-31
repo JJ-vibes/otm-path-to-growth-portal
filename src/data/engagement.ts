@@ -46,7 +46,7 @@ export interface RawEngagement {
   flags?: CascadeFlag[];
 }
 
-function buildEngagement(raw: RawEngagement): Engagement {
+export function buildEngagement(raw: RawEngagement): Engagement {
   const keyToName = new Map(raw.nodes.map((n) => [n.nodeKey, n.displayName]));
 
   const downstreamMap = new Map<string, string[]>();
@@ -72,13 +72,3 @@ function buildEngagement(raw: RawEngagement): Engagement {
     flags: raw.flags || [],
   };
 }
-
-// For client components — uses static import (cached at build)
-import rawData from "./ep-engagement.json";
-
-export function getEngagement(): Engagement {
-  return buildEngagement(rawData as RawEngagement);
-}
-
-// Re-export buildEngagement for server-side use
-export { buildEngagement };

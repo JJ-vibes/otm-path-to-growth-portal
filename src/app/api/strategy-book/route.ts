@@ -2,13 +2,19 @@ import { NextResponse } from "next/server";
 import puppeteer from "puppeteer";
 import { getEngagementFresh } from "@/lib/data-store";
 import { generateStrategyBookHTML } from "@/lib/strategy-book-template";
+import { getUserEngagementId } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
 
 export async function GET() {
   try {
-    const engagement = getEngagementFresh();
+    const engagementId = await getUserEngagementId();
+    if (!engagementId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const engagement = await getEngagementFresh(engagementId);
     const html = generateStrategyBookHTML(engagement);
 
     const browser = await puppeteer.launch({

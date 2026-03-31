@@ -1,0 +1,117 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  ADMIN
+  CLIENT
+}
+
+enum NodeStatus {
+  locked
+  active
+  complete
+  flagged
+  cascading
+}
+
+enum FlagType {
+  needs_review
+  cascading
+}
+
+model User {
+  id           String           @id @default(cuid())
+  email        String           @unique
+  name         String?
+  passwordHash String
+  role         Role             @default(CLIENT)
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+  engagements  EngagementUser[]
+}
+
+model Engagement {
+  id             String           @id @default(cuid())
+  clientName     String
+  lifecycleStage String           @default("Traction")
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  nodes          Node[]
+  users          EngagementUser[]
+}
+
+model EngagementUser {
+  id           String     @id @default(cuid())
+  userId       String
+  engagementId String
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  engagement   Engagement @relation(fields: [engagementId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, engagementId])
+}
+
+model Node {
+  id            String           @id @default(cuid())
+  engagementId  String
+  nodeKey       String
+  displayName   String
+  sortOrder     Int
+  isGate        Boolean          @default(false)
+  isConditional Boolean          @default(false)
+  status        NodeStatus       @default(locked)
+  engagement    Engagement       @relation(fields: [engagementId], references: [id], onDelete: Cascade)
+
+  // Dependencies: this node depends on...
+  dependsOn     NodeDependency[] @relation("dependent")
+  // Nodes that depend on this one
+  dependedOnBy  NodeDependency[] @relation("dependency")
+
+  versions      NodeVersion[]
+  flagsReceived CascadeFlag[]    @relation("flaggedNode")
+  flagsCaused   CascadeFlag[]    @relation("sourceNode")
+
+  @@unique([engagementId, nodeKey])
+}
+
+model NodeDependency {
+  id             String @id @default(cuid())
+  nodeId         String
+  dependsOnNodeId String
+  node           Node   @relation("dependent", fields: [nodeId], references: [id], onDelete: Cascade)
+  dependsOnNode  Node   @relation("dependency", fields: [dependsOnNodeId], references: [id], onDelete: Cascade)
+
+  @@unique([nodeId, dependsOnNodeId])
+}
+
+model NodeVersion {
+  id                String   @id @default(cuid())
+  nodeId            String
+  versionNumber     Int      @default(1)
+  execSummary       String?  @db.Text
+  documentUrl       String?
+  changeType        String?
+  changeNote        String?
+  isCurrent         Boolean  @default(true)
+  isBaseline        Boolean  @default(false)
+  cascadeTriggering Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  node              Node     @relation(fields: [nodeId], references: [id], onDelete: Cascade)
+}
+
+model CascadeFlag {
+  id              String   @id @default(cuid())
+  flaggedNodeId   String
+  sourceNodeId    String
+  flagType        FlagType
+  sourceChangeDate DateTime @default(now())
+  resolved        Boolean  @default(false)
+  resolvedAt      DateTime?
+  flaggedNode     Node     @relation("flaggedNode", fields: [flaggedNodeId], references: [id], onDelete: Cascade)
+  sourceNode      Node     @relation("sourceNode", fields: [sourceNodeId], references: [id], onDelete: Cascade)
+}

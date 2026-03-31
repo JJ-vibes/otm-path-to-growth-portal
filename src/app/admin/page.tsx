@@ -1,11 +1,19 @@
 import Image from "next/image";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { getEngagementFresh } from "@/lib/data-store";
+import { getSessionUser, getUserEngagementId } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
-export default function AdminPage() {
-  const engagement = getEngagementFresh();
+export default async function AdminPage() {
+  const user = await getSessionUser();
+  if (!user || user.role !== "ADMIN") redirect("/login");
+
+  const engagementId = await getUserEngagementId();
+  if (!engagementId) redirect("/login");
+
+  const engagement = await getEngagementFresh(engagementId);
 
   return (
     <div className="min-h-screen bg-otm-light">

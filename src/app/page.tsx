@@ -5,8 +5,8 @@ import { getEngagementFresh } from "@/lib/data-store";
 
 export const dynamic = "force-dynamic";
 
-export default function HomePage() {
-  const engagement = getEngagementFresh();
+export default async function HomePage() {
+  const engagement = await getEngagementFresh();
   const completed = engagement.nodes.filter((n) => n.status === "complete").length;
   const total = engagement.nodes.length;
 
