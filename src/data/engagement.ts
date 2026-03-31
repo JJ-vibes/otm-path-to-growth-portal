@@ -1,0 +1,84 @@
+export type NodeStatus = "locked" | "active" | "complete" | "flagged" | "cascading";
+
+export interface CascadeFlag {
+  flaggedNodeKey: string;
+  sourceNodeKey: string;
+  flagType: "needs_review" | "cascading";
+  sourceChangeDate: string;
+  resolved: boolean;
+}
+
+export interface CascadeNode {
+  nodeKey: string;
+  displayName: string;
+  sortOrder: number;
+  isGate: boolean;
+  isConditional: boolean;
+  status: NodeStatus;
+  dependsOn: string[];
+  execSummary?: string;
+  upstreamNames: string[];
+  downstreamNames: string[];
+}
+
+export interface Engagement {
+  clientName: string;
+  lifecycleStage: string;
+  nodes: CascadeNode[];
+  flags: CascadeFlag[];
+}
+
+export interface RawNode {
+  nodeKey: string;
+  displayName: string;
+  sortOrder: number;
+  isGate: boolean;
+  isConditional: boolean;
+  status: string;
+  dependsOn: string[];
+  execSummary?: string;
+}
+
+export interface RawEngagement {
+  clientName: string;
+  lifecycleStage: string;
+  nodes: RawNode[];
+  flags?: CascadeFlag[];
+}
+
+function buildEngagement(raw: RawEngagement): Engagement {
+  const keyToName = new Map(raw.nodes.map((n) => [n.nodeKey, n.displayName]));
+
+  const downstreamMap = new Map<string, string[]>();
+  for (const node of raw.nodes) {
+    for (const dep of node.dependsOn) {
+      const existing = downstreamMap.get(dep) || [];
+      existing.push(node.displayName);
+      downstreamMap.set(dep, existing);
+    }
+  }
+
+  const nodes: CascadeNode[] = raw.nodes.map((node) => ({
+    ...node,
+    status: node.status as NodeStatus,
+    upstreamNames: node.dependsOn.map((k) => keyToName.get(k) || k),
+    downstreamNames: downstreamMap.get(node.nodeKey) || [],
+  }));
+
+  return {
+    clientName: raw.clientName,
+    lifecycleStage: raw.lifecycleStage,
+    nodes,
+    flags: raw.flags || [],
+  };
+}
+
+// For client components — uses static import (cached at build)
+import rawData from "./ep-engagement.json";
+
+export function getEngagement(): Engagement {
+  return buildEngagement(rawData as RawEngagement);
+}
+
+// Re-export buildEngagement for server-side use
+export { buildEngagement };

@@ -1,0 +1,127 @@
+{
+  "clientName": "Executive Presence",
+  "lifecycleStage": "Traction",
+  "nodes": [
+    {
+      "nodeKey": "kbi",
+      "displayName": "Key Business Information",
+      "sortOrder": 1,
+      "isGate": false,
+      "isConditional": false,
+      "status": "complete",
+      "dependsOn": [],
+      "execSummary": "Executive Presence is a specialized B2B services firm that helps executives and organizations build trust, visibility, and influence through authentic thought leadership on LinkedIn. You currently support approximately 47 active clients across three business models: EP 1.0 (individual executive programs), CoCreate (a lower-touch hybrid), and a small but strategically important set of EP 2.0 multi-executive engagements.\n\nYour current positioning around \"LinkedIn content for executives\" has built the business to roughly $200K in MRR, but has exposed structural issues: tight margins, consistent churn, and an inconsistent pipeline. Most individual executive clients struggle to see attributable ROI, and when a CMO reprioritizes, these one-off relationships churn.\n\nThe goal of this engagement is to reposition Executive Presence from a partner to individual executives toward an organizational brand partner supporting the entire go-to-market function \u2014 reducing churn and improving revenue quality by shifting from one-off executives to embedded, organization-wide partnerships."
+    },
+    {
+      "nodeKey": "icp_alignment",
+      "displayName": "ICP Alignment",
+      "sortOrder": 2,
+      "isGate": false,
+      "isConditional": true,
+      "status": "complete",
+      "dependsOn": [
+        "kbi"
+      ],
+      "execSummary": "The ideal target client for Executive Presence 2.0 is a growth-stage B2B company where leadership credibility shapes market perception and market perception is necessary for growth. These are companies with $20M or more in annual revenue, 50 to 2,000+ employees, in industries like IT services, professional services, finance, managed services, and technology-enabled businesses.\n\nThe right client has a real point of view worth amplifying and a CEO who is willing to put it to work. They are not looking for a posting service \u2014 they want a partner who will push back on weak ideas, extract what's actually worth saying, and connect it to how the rest of the business operates. Inflection points such as recent acquisitions, PE backing, or upcoming liquidity events are strong buying signals."
+    },
+    {
+      "nodeKey": "comp_analysis",
+      "displayName": "Competitive Analysis",
+      "sortOrder": 3,
+      "isGate": false,
+      "isConditional": false,
+      "status": "complete",
+      "dependsOn": [
+        "kbi"
+      ],
+      "execSummary": "The executive visibility market is expanding rapidly \u2014 the ghostwriting industry alone has grown from $1.55B in 2021 to $2.05B in 2025. This growth has lowered the barrier to producing polished content without solving the deeper challenge: building real executive credibility that connects back to business outcomes.\n\nThe competitive landscape is fragmented across content agencies, ghostwriters, PR firms, brand consultants, and sales-focused social selling firms. Most serve individual executives, not leadership teams. No major competitor offers a coordinated, cross-executive visibility system \u2014 this leaves a clear gap at the organizational level, exactly where Executive Presence 2.0 is positioned to compete.\n\nWhen companies don't work with Executive Presence, they typically rely on PR firms that fold LinkedIn into a broader engagement (losing platform focus), internal marketing teams that add LinkedIn to existing responsibilities (no dedicated strategy), AI tools combined with DIY effort, or playbook agencies that promise a system and a schedule (volume over substance)."
+    },
+    {
+      "nodeKey": "positioning_options",
+      "displayName": "Positioning Options",
+      "sortOrder": 4,
+      "isGate": false,
+      "isConditional": false,
+      "status": "complete",
+      "dependsOn": [
+        "kbi",
+        "icp_alignment",
+        "comp_analysis"
+      ],
+      "execSummary": "Three strategic directions were evaluated for how Executive Presence transitions from EP 1.0 to EP 2.0. Option A uses catalytic business moments (fundraising, launches, exits) as the wedge into organizational coordination. Option B builds a full communication foundation framework that extends beyond LinkedIn. Option C leads with CEO-only at a premium price point and adds executives over time.\n\nEach option was assessed on its target buyer, qualifying criteria, deal-breaker scenarios, pricing model, and competitive defensibility. The core tension across all three: the entry strategy must get Executive Presence to organizational coordination without trapping it back in individual executive services \u2014 which is what killed the 1.0 model."
+    },
+    {
+      "nodeKey": "positioning_guide",
+      "displayName": "Positioning Guide",
+      "sortOrder": 5,
+      "isGate": true,
+      "isConditional": false,
+      "status": "complete",
+      "dependsOn": [
+        "positioning_options"
+      ],
+      "execSummary": "Revised positioning guide summary for cascade test."
+    },
+    {
+      "nodeKey": "target_personas",
+      "displayName": "Target Personas",
+      "sortOrder": 6,
+      "isGate": false,
+      "isConditional": false,
+      "status": "complete",
+      "dependsOn": [
+        "positioning_guide",
+        "icp_alignment"
+      ],
+      "execSummary": "## Executive Summary: Target Personas\n\nWe've defined two distinct buyer personas that will guide your go-to-market strategy, building directly on your Positioning Guide and ICP alignment work. These personas represent the CEOs most likely to invest in executive presence services, each with fundamentally different motivations and decision-making processes.\n\n**The Platform Builder** is your enterprise segment\u2014CEOs of $100M+ companies built through acquisition who are preparing for liquidity events. They're already active on LinkedIn organically but lack systematic amplification. These buyers are highly skeptical of manufactured approaches and have been burned by formulaic agencies. They make decisions based on philosophical alignment rather than price, but they expect you to evaluate whether they have substance worth amplifying before agreeing to work together. **The Scale-Up Strategist** represents your growth segment\u2014CEOs of $20-100M companies that are post-acquisition or PE-backed. They're managing integration pressures while trying to maintain market presence through small, overwhelmed marketing teams. Their current content efforts generate only 1-2 deals per year, and they're frustrated by unqualified intro volume that wastes time.\n\nThe critical insight is that these personas have opposite tolerance for risk and different entry points. Platform Builders will pay premium prices without negotiation if convinced of value, but they demand mutual evaluation and bi-directional feedback. Scale-Up Strategists operate in the $5-10K comfort zone and need upfront strategic work to prove value before committing to ongoing retainers. This persona definition enables you to develop differentiated offer architecture and messaging\u2014exclusive, substance-first positioning for Platform Builders, and pilot-to-full engagement paths with upfront strategy for Scale-Up Strategists.\n\nThese personas directly inform your offer architecture by establishing two distinct service paths, and they'll anchor your brand story by highlighting the specific credibility challenges each segment faces. The positioning strategy for each persona\u2014evaluating substance before amplification for Platform Builders, and starting with strategic alignment for Scale-Up Strategists\u2014will differentiate you from agencies that treat all executives the same regardless of their readiness or business context."
+    },
+    {
+      "nodeKey": "offer_architecture",
+      "displayName": "Offer Architecture",
+      "sortOrder": 7,
+      "isGate": false,
+      "isConditional": true,
+      "status": "locked",
+      "dependsOn": [
+        "positioning_guide",
+        "target_personas"
+      ]
+    },
+    {
+      "nodeKey": "brand_story",
+      "displayName": "Brand Story",
+      "sortOrder": 8,
+      "isGate": false,
+      "isConditional": false,
+      "status": "locked",
+      "dependsOn": [
+        "positioning_guide",
+        "target_personas"
+      ]
+    },
+    {
+      "nodeKey": "messaging_playbook",
+      "displayName": "Messaging Playbook",
+      "sortOrder": 9,
+      "isGate": false,
+      "isConditional": false,
+      "status": "locked",
+      "dependsOn": [
+        "brand_story"
+      ]
+    },
+    {
+      "nodeKey": "gtm_plan",
+      "displayName": "GTM Plan",
+      "sortOrder": 10,
+      "isGate": false,
+      "isConditional": false,
+      "status": "locked",
+      "dependsOn": [
+        "messaging_playbook",
+        "offer_architecture"
+      ]
+    }
+  ],
+  "flags": []
+}
