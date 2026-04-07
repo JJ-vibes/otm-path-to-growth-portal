@@ -6,6 +6,7 @@ import Image from "next/image";
 import Link from "next/link";
 import type { CascadeNode, CascadeFlag, NodeTemplateSection, NodeSectionData } from "@/data/engagement";
 import SummaryContent from "@/components/SummaryContent";
+import { parseSectionsFromText } from "@/lib/parse-sections";
 
 type Step =
   | "idle"
@@ -98,6 +99,18 @@ export default function NodeAdminPage() {
 
       if (useLegacy) {
         setLegacySummary(text.slice(0, 2000));
+      } else if (templateSections.length > 0) {
+        const parsed = parseSectionsFromText(text, templateSections);
+        setSectionContents((prev) => {
+          // Merge: only overwrite sections that were empty
+          const merged = { ...prev };
+          for (const [key, val] of Object.entries(parsed)) {
+            if (!merged[key]?.trim()) {
+              merged[key] = val;
+            }
+          }
+          return merged;
+        });
       }
 
       setStep("editing");
