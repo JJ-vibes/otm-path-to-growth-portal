@@ -7,6 +7,7 @@ export interface NodeTemplateSection {
   sortOrder: number;
   displayLayer: DisplayLayer;
   isRequired: boolean;
+  isConditional: boolean;
   description: string | null;
 }
 

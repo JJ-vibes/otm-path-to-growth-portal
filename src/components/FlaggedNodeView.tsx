@@ -1,5 +1,5 @@
 import { CascadeNode } from "@/data/engagement";
-import SummaryContent from "./SummaryContent";
+import SectionHtml from "./SectionHtml";
 
 export default function FlaggedNodeView({
   node,
@@ -49,7 +49,7 @@ export default function FlaggedNodeView({
                 <h3 className="font-outfit font-semibold text-otm-navy text-base mb-2">
                   {section.sectionTitle}
                 </h3>
-                <SummaryContent content={section.content} />
+                <SectionHtml content={section.content} />
               </div>
             ))}
         </>
@@ -59,7 +59,7 @@ export default function FlaggedNodeView({
           <h3 className="text-[11px] uppercase text-gray-400 tracking-[0.06em] mb-3">
             Executive Summary
           </h3>
-          <SummaryContent content={node.execSummary} />
+          <SectionHtml content={node.execSummary} />
         </>
       ) : null}
 

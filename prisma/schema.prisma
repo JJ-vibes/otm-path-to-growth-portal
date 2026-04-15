@@ -111,14 +111,15 @@ model NodeVersion {
 }
 
 model NodeTemplate {
-  id           String       @id @default(cuid())
-  nodeKey      String
-  sectionKey   String
-  sectionTitle String
-  sortOrder    Int
-  displayLayer DisplayLayer
-  isRequired   Boolean      @default(true)
-  description  String?      @db.Text
+  id            String       @id @default(cuid())
+  nodeKey       String
+  sectionKey    String
+  sectionTitle  String
+  sortOrder     Int
+  displayLayer  DisplayLayer
+  isRequired    Boolean      @default(true)
+  isConditional Boolean      @default(false)
+  description   String?      @db.Text
 
   @@unique([nodeKey, sectionKey])
   @@index([nodeKey])

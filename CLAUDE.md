@@ -4,7 +4,7 @@
 
 ## What This Is
 
-A client portal for OTM (meetotm.com) where clients log in and track their Stage 1 strategy engagement. The portal IS the digital Strategy Book — a navigable surface built on a 10-node document dependency cascade. Each deliverable has an AI-generated executive summary and a downloadable full document.
+A client portal for OTM (meetotm.com) where clients log in and track their Stage 1 strategy engagement. The portal IS the digital Strategy Book — a navigable surface built on a 7-node document dependency cascade. Each deliverable is auto-parsed from structured .docx templates into rich HTML sections (CHAPTER for client-facing strategic read, FULL for expandable detail).
 
 **Live URL:** https://otm-path-to-growth-portal-production.up.railway.app
 **Repo:** https://github.com/oldtownmedia/otm-path-to-growth-portal
@@ -21,8 +21,8 @@ A client portal for OTM (meetotm.com) where clients log in and track their Stage
 | Auth | NextAuth v4 | JWT strategy, CredentialsProvider |
 | Database | PostgreSQL | Hosted on Railway |
 | ORM | Prisma 7 | Uses `@prisma/adapter-pg` driver adapter pattern (not `datasourceUrl`) |
-| AI | Anthropic SDK | claude-sonnet-4-20250514 for exec summary generation |
-| Doc parsing | mammoth (docx), pdf-parse (pdf) | pdf-parse lazy-imported to avoid test file issue |
+| Doc parsing | mammoth (docx) | Converts .docx → HTML, splits at H1 for section matching |
+| HTML sanitize | sanitize-html | Safe rendering of mammoth HTML output |
 | PDF gen | Puppeteer | Strategy book PDF with branded cover/TOC |
 | Hosting | Railway | App + Postgres as separate services |
 | Fonts | Outfit (headings), Lato (body) | via next/font/google |
@@ -47,16 +47,17 @@ A client portal for OTM (meetotm.com) where clients log in and track their Stage
 ### API Routes
 
 ```
-GET  /api/engagement                    → Client's engagement data (session-scoped)
-GET  /api/nodes/[nodeKey]/details       → Single node + active flag
-POST /api/nodes/[nodeKey]/publish       → Save exec summary, trigger cascade
-POST /api/nodes/[nodeKey]/resolve-flag  → Resolve a cascade flag
-GET  /api/strategy-book                 → Generate branded PDF download
-POST /api/upload                        → Upload doc, extract text, save file
-GET  /api/documents/[filename]          → Authenticated file download
-POST /api/engagements                   → Create new engagement (admin only)
-POST /api/extract-summary               → Claude API generates exec summary
-*/   /api/auth/[...nextauth]            → NextAuth endpoints
+GET  /api/engagement                         → Client's engagement data (session-scoped)
+GET  /api/nodes/[nodeKey]/details            → Single node + active flag + sections
+POST /api/nodes/[nodeKey]/publish            → Save sections, trigger cascade
+POST /api/nodes/[nodeKey]/resolve-flag       → Resolve a cascade flag
+POST /api/nodes/[nodeKey]/parse-upload       → Auto-parse .docx against node templates
+GET  /api/templates/[nodeKey]                → Node template sections for admin editor
+GET  /api/strategy-book                      → Generate branded PDF (CHAPTER sections)
+POST /api/upload                             → Upload doc, extract text + HTML, save file
+GET  /api/documents/[filename]               → Authenticated file download
+POST /api/engagements                        → Create new engagement (admin, 7 nodes)
+*/   /api/auth/[...nextauth]                 → NextAuth endpoints
 ```
 
 ### Auth & Authorization
@@ -81,23 +82,21 @@ CascadeFlag       → id, flaggedNodeId, sourceNodeId, flagType, resolved
 
 **Node statuses:** `locked`, `active`, `complete`, `flagged`, `cascading`
 
-### The 10-Node Cascade (Stage 1)
+### The 7-Node Cascade (Stage 1)
 
 ```
-1. Key Business Information    → (no deps)
-2. ICP Alignment               → KBI [conditional]
-3. Competitive Analysis        → KBI
-4. Positioning Options         → KBI, ICP, Comp
-5. Positioning Guide           → Options [GATE — locks all downstream]
-6. Target Personas             → Guide, ICP
-7. Offer Architecture          → Guide, Personas [conditional]
-8. Brand Story                 → Guide, Personas
-9. Messaging Playbook          → Brand Story
-10. GTM Plan                   → Playbook, Offer Arch
+1. Key Business Information     → (no deps, starts "active")
+2. Ideal Client Profile         → KBI                    [VoC sections conditional]
+3. Competitive & Market Analysis → KBI
+4. Positioning                  → KBI, ICP, Comp         [GATE — locks all downstream]
+5. What Are We Selling          → Positioning, ICP       [conditional node]
+6. Messaging Playbook           → Positioning
+7. GTM Plan                     → Playbook, What Are We Selling
 ```
 
-**Gate node:** Positioning Guide. When revised, everything downstream gets flagged.
-**Conditional nodes:** ICP Alignment and Offer Architecture may not appear in every engagement.
+**Gate node:** Positioning. When revised, everything downstream gets flagged.
+**Conditional node:** What Are We Selling may not appear in every engagement.
+**Conditional sections:** ICP's Voice of Customer sections toggled on when engagement includes primary research.
 
 ### Cascade Flag Logic
 
@@ -116,21 +115,26 @@ When a completed node is revised and marked cascade-triggering:
 src/lib/prisma.ts               → Prisma client singleton (PrismaPg adapter)
 src/lib/data-store.ts           → All DB queries (getEngagementFresh, updateNode, resolveFlag, etc.)
 src/lib/cascade.ts              → Cascade flag propagation engine
+src/lib/doc-parser.ts           → Auto-parse .docx: mammoth → HTML → split at H1 → match to templates
 src/lib/auth.ts                 → NextAuth config (CredentialsProvider, JWT callbacks)
 src/lib/session.ts              → Session helpers (getSessionUser, getUserEngagementId)
-src/lib/strategy-book-template.ts → PDF HTML template for Puppeteer
-src/data/engagement.ts          → TypeScript types (CascadeNode, Engagement, CascadeFlag, etc.)
-src/data/ep-engagement.json     → Legacy JSON data (no longer used at runtime, kept for reference)
+src/lib/strategy-book-template.ts → PDF HTML template for Puppeteer (renders CHAPTER sections)
+src/data/engagement.ts          → TypeScript types (CascadeNode, Engagement, NodeSectionData, etc.)
 src/proxy.ts                    → Next.js 16 route protection (was middleware.ts)
 src/components/Providers.tsx    → SessionProvider wrapper
 src/components/TopBar.tsx       → Header with sign out, conditional admin link
-src/components/CascadeNav.tsx   → Left nav with 10 nodes, progress bar, PDF download
+src/components/CascadeNav.tsx   → Left nav with 7 nodes, chapter counts, progress bar, PDF download
 src/components/NodeContent.tsx  → Right pane content based on node status
+src/components/SectionHtml.tsx  → Renders sanitized HTML content with OTM prose styling
+src/components/SectionExpander.tsx → Expandable FULL section rows
+src/components/InheritedBadge.tsx → "Based on [source]" badge for inherited sections
+src/components/CompleteNodeView.tsx → Completed node: CHAPTER sections + FULL expanders
+src/components/ActiveNodeView.tsx → Active node with section progress indicator
 src/components/CascadeBanner.tsx → Amber banner when cascade flags are active
 src/components/DevToggle.tsx    → Dev-only widget for testing node status changes
 src/types/next-auth.d.ts       → Type augmentation for session (id, role)
-prisma/schema.prisma            → Database schema
-prisma/seed.ts                  → Seeds EP engagement with all nodes + exec summaries
+prisma/schema.prisma            → Database schema (Node, NodeTemplate, NodeSection, NodeVersion, etc.)
+prisma/seed.ts                  → Seeds EP engagement: 7 nodes, 63 templates, HTML section content
 prisma.config.ts                → Prisma config (datasource URL, seed command)
 next.config.ts                  → NEXTAUTH_URL and SECRET fallbacks for Railway
 nixpacks.toml                   → Railway build config (npm install instead of npm ci)
@@ -221,7 +225,7 @@ Both `DATABASE_URL` and `DIRECT_DATABASE_URL` use the **internal** Postgres URL 
 
 ---
 
-## What's Built (Sessions 1-5)
+## What's Built (Sessions 1-10)
 
 | Session | What | Status |
 |---------|------|--------|
@@ -230,6 +234,11 @@ Both `DATABASE_URL` and `DIRECT_DATABASE_URL` use the **internal** Postgres URL 
 | 3 | Cascade flag engine — upstream changes flag downstream nodes | Done |
 | 4 | Strategy book PDF — branded cover, TOC, chapters via Puppeteer | Done |
 | 5 | Prisma + PostgreSQL, NextAuth login, client isolation, multi-engagement admin, Railway deploy | Done |
+| 6 | Schema + seed for structured sections: NodeTemplate, NodeSection, 7-node cascade | Done |
+| 7 | Admin section editor: auto-parse .docx upload, rich HTML preview, conditional VoC toggle | Done |
+| 8 | Client display: SectionHtml renderer, prose-otm CSS, CHAPTER/FULL split, section expanders | Done |
+| 9 | Strategy book PDF refactored for HTML sections, table/list CSS | Done |
+| 10 | Cleanup: removed AI extraction, SummaryContent, parse-sections; mobile responsive pass | Done |
 
 ## Future Work (not yet built)
 
@@ -259,10 +268,10 @@ Both `DATABASE_URL` and `DIRECT_DATABASE_URL` use the **internal** Postgres URL 
 
 6. **Data store is fully async** — all functions in `src/lib/data-store.ts` return Promises. Server components must be `async` and `await` calls. The old synchronous `getEngagement()` from `src/data/engagement.ts` is no longer used.
 
-7. **The JSON file store (`src/data/ep-engagement.json`) still exists** but is not used at runtime. All data flows through PostgreSQL via Prisma. The file is kept for reference.
+7. **Content is stored as HTML** from mammoth .docx conversion. The `SectionHtml` component renders it with `dangerouslySetInnerHTML` after sanitization via `sanitize-html`. OTM brand styling is applied via the `.prose-otm` CSS class in `globals.css`.
 
 8. **Railway env vars must be on the app service, not the Postgres service** — Railway auto-creates variables on the Postgres service, but the app service needs its own copies. Variables set on the Postgres service are NOT automatically available to the app.
 
 9. **NEXTAUTH_SECRET and NEXTAUTH_URL have hardcoded fallbacks** in `next.config.ts` and `src/lib/auth.ts` because Railway's runtime env var injection was inconsistent during deployment. The env vars should still be set properly, but the fallbacks prevent crashes.
 
-10. **Creating a new engagement auto-generates all 10 Stage 1 nodes** with the correct dependency graph and sets KBI to `active`. See `POST /api/engagements`.
+10. **Creating a new engagement auto-generates all 7 Stage 1 nodes** with the correct dependency graph and sets KBI to `active`. See `POST /api/engagements`.

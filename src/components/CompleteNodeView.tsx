@@ -1,5 +1,5 @@
 import { CascadeNode } from "@/data/engagement";
-import SummaryContent from "./SummaryContent";
+import SectionHtml from "./SectionHtml";
 import SectionExpander from "./SectionExpander";
 import InheritedBadge from "./InheritedBadge";
 
@@ -58,7 +58,7 @@ export default function CompleteNodeView({ node }: { node: CascadeNode }) {
                       <InheritedBadge sourceName={section.inheritedFromNode} />
                     )}
                   </div>
-                  <SummaryContent content={section.content} />
+                  <SectionHtml content={section.content} />
                 </div>
               ))}
             </div>
@@ -91,7 +91,7 @@ export default function CompleteNodeView({ node }: { node: CascadeNode }) {
             <h3 className="text-[11px] uppercase text-gray-400 tracking-[0.06em] mb-3">
               Executive Summary
             </h3>
-            <SummaryContent content={node.execSummary} />
+            <SectionHtml content={node.execSummary} />
           </div>
         )
       )}

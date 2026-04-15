@@ -29,10 +29,15 @@ export async function POST(req: NextRequest) {
     const buffer = Buffer.from(await file.arrayBuffer());
     const filename = file.name.toLowerCase();
     let text = "";
+    let html = "";
 
     if (filename.endsWith(".docx")) {
-      const result = await mammoth.extractRawText({ buffer });
-      text = result.value;
+      const [textResult, htmlResult] = await Promise.all([
+        mammoth.extractRawText({ buffer }),
+        mammoth.convertToHtml({ buffer }),
+      ]);
+      text = textResult.value;
+      html = htmlResult.value;
     } else if (filename.endsWith(".pdf")) {
       const { default: pdfParse } = await import("pdf-parse");
       const result = await pdfParse(buffer);
@@ -59,6 +64,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       text,
+      html: html || undefined,
       filename: file.name,
       storedFilename: safeFilename,
     });

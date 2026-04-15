@@ -8,6 +8,10 @@ function getLogoBase64(): string {
   return `data:image/png;base64,${buffer.toString("base64")}`;
 }
 
+function looksLikeHtml(str: string): boolean {
+  return str.includes("<p>") || str.includes("<ul>") || str.includes("<ol>") || str.includes("<table>");
+}
+
 function escapeHtml(str: string): string {
   return str
     .replace(/&/g, "&amp;")
@@ -126,17 +130,24 @@ function renderChapter(
         const sourceNote = section.isInherited && section.inheritedFromNode
           ? `<p class="section-source">Source: ${escapeHtml(section.inheritedFromNode)}</p>`
           : "";
+        // Content is HTML from mammoth — render directly
+        const contentHtml = looksLikeHtml(section.content)
+          ? section.content
+          : renderMarkdownText(section.content);
         return `
           <div class="chapter-section">
             <h3 class="section-heading">${escapeHtml(section.sectionTitle)}</h3>
             ${sourceNote}
-            ${renderMarkdownText(section.content)}
+            ${contentHtml}
           </div>
         `;
       })
       .join("\n");
   } else {
-    bodyHtml = renderMarkdownText(node.execSummary!);
+    // Legacy fallback: execSummary may be markdown or HTML
+    bodyHtml = looksLikeHtml(node.execSummary!)
+      ? node.execSummary!
+      : renderMarkdownText(node.execSummary!);
   }
 
   return `
@@ -394,6 +405,70 @@ export function generateStrategyBookHTML(engagement: Engagement): string {
       color: #9ca3af;
       font-style: italic;
       margin-bottom: 8px;
+    }
+
+    /* HTML content styles (from mammoth) */
+    .chapter-body ul {
+      list-style-type: disc;
+      padding-left: 20px;
+      margin-bottom: 14px;
+    }
+    .chapter-body ol {
+      list-style-type: decimal;
+      padding-left: 20px;
+      margin-bottom: 14px;
+    }
+    .chapter-body li {
+      margin-bottom: 4px;
+      line-height: 1.65;
+    }
+    .chapter-body table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 16px;
+      font-size: 9pt;
+    }
+    .chapter-body th {
+      background-color: #023a67;
+      color: white;
+      font-weight: 600;
+      text-align: left;
+      padding: 6px 8px;
+      font-family: 'Outfit', sans-serif;
+      font-size: 8.5pt;
+    }
+    .chapter-body td {
+      padding: 5px 8px;
+      border-bottom: 1px solid #e5e7eb;
+      vertical-align: top;
+      line-height: 1.5;
+    }
+    .chapter-body tr:nth-child(even) td {
+      background-color: #f9fafb;
+    }
+    .chapter-body em {
+      font-style: italic;
+    }
+    .chapter-body a {
+      color: #259494;
+      text-decoration: underline;
+    }
+    .chapter-body blockquote {
+      border-left: 3px solid #259494;
+      padding-left: 12px;
+      margin: 12px 0;
+      color: #6b7280;
+      font-style: italic;
+    }
+    .chapter-body h2 {
+      font-size: 13pt;
+      margin-top: 18px;
+      margin-bottom: 8px;
+    }
+    .chapter-body h3, .chapter-body h4 {
+      font-size: 11pt;
+      margin-top: 14px;
+      margin-bottom: 6px;
     }
   </style>
 </head>

@@ -15,6 +15,7 @@
     "@auth/prisma-adapter": "^2.11.1",
     "@prisma/adapter-pg": "^7.6.0",
     "@prisma/client": "^7.6.0",
+    "@types/sanitize-html": "^2.16.1",
     "bcryptjs": "^3.0.3",
     "mammoth": "^1.12.0",
     "next": "16.2.1",
@@ -25,7 +26,8 @@
     "puppeteer": "^24.40.0",
     "react": "19.2.4",
     "react-dom": "19.2.4",
-    "react-markdown": "^10.1.0"
+    "react-markdown": "^10.1.0",
+    "sanitize-html": "^2.17.3"
   },
   "prisma": {
     "seed": "npx tsx prisma/seed.ts"

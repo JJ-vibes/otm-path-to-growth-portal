@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import SummaryContent from "./SummaryContent";
+import SectionHtml from "./SectionHtml";
 
 export default function SectionExpander({
   title,
@@ -41,7 +41,7 @@ export default function SectionExpander({
       {open && (
         <div className="px-4 pb-4 border-t border-gray-100">
           <div className="pt-3">
-            <SummaryContent content={content} />
+            <SectionHtml content={content} />
           </div>
         </div>
       )}

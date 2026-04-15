@@ -5,13 +5,23 @@ import { useParams, useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import type { CascadeNode, CascadeFlag, NodeTemplateSection, NodeSectionData } from "@/data/engagement";
-import SummaryContent from "@/components/SummaryContent";
-import { parseSectionsFromText } from "@/lib/parse-sections";
+import SectionHtml from "@/components/SectionHtml";
+
+interface ParsedSectionResult {
+  sectionKey: string;
+  sectionTitle: string;
+  content: string;
+  sortOrder: number;
+  displayLayer: "CHAPTER" | "FULL";
+  isRequired: boolean;
+  isConditional: boolean;
+  matched: boolean;
+}
 
 type Step =
   | "idle"
   | "uploading"
-  | "extracting"
+  | "parsing"
   | "editing"
   | "publishing"
   | "done";
@@ -29,8 +39,10 @@ export default function NodeAdminPage() {
   // Section editor state
   const [templateSections, setTemplateSections] = useState<NodeTemplateSection[]>([]);
   const [sectionContents, setSectionContents] = useState<Record<string, string>>({});
-  const [extractedText, setExtractedText] = useState("");
+  const [unmatchedHeadings, setUnmatchedHeadings] = useState<string[]>([]);
   const [triggerCascade, setTriggerCascade] = useState(false);
+  const [disabledConditionals, setDisabledConditionals] = useState<Set<string>>(new Set());
+  const [uploadedFilename, setUploadedFilename] = useState("");
 
   // Legacy fallback state (for nodes without templates)
   const [legacySummary, setLegacySummary] = useState("");
@@ -71,48 +83,81 @@ export default function NodeAdminPage() {
 
   const isRevision = node?.status === "complete";
 
+  const hasConditionalSections = templateSections.some((t) => t.isConditional);
+
   function updateSectionContent(sectionKey: string, content: string) {
     setSectionContents((prev) => ({ ...prev, [sectionKey]: content }));
   }
 
+  function toggleConditionalSections() {
+    const conditionalKeys = templateSections
+      .filter((t) => t.isConditional)
+      .map((t) => t.sectionKey);
+
+    setDisabledConditionals((prev) => {
+      if (prev.size > 0) {
+        return new Set();
+      }
+      return new Set(conditionalKeys);
+    });
+  }
+
   async function handleUpload(file: File) {
     setError("");
-    setStep("uploading");
+    setUploadedFilename(file.name);
+
+    if (useLegacy) {
+      // Legacy flow — just extract text
+      setStep("uploading");
+      try {
+        const formData = new FormData();
+        formData.append("file", file);
+        const res = await fetch("/api/upload", { method: "POST", body: formData });
+        if (!res.ok) throw new Error((await res.json()).error || "Upload failed");
+        const { text } = await res.json();
+        setLegacySummary(text.slice(0, 2000));
+        setStep("editing");
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Something went wrong");
+        setStep("idle");
+      }
+      return;
+    }
+
+    // Section-based flow — use auto-parser
+    setStep("parsing");
 
     try {
-      setStep("extracting");
-      const formData = new FormData();
-      formData.append("file", file);
+      // First upload the file to save it
+      const uploadForm = new FormData();
+      uploadForm.append("file", file);
+      const uploadRes = await fetch("/api/upload", { method: "POST", body: uploadForm });
+      if (!uploadRes.ok) throw new Error((await uploadRes.json()).error || "Upload failed");
 
-      const uploadRes = await fetch("/api/upload", {
+      // Then parse it against templates
+      const parseForm = new FormData();
+      parseForm.append("file", file);
+      const parseRes = await fetch(`/api/nodes/${nodeKey}/parse-upload`, {
         method: "POST",
-        body: formData,
+        body: parseForm,
+      });
+      if (!parseRes.ok) throw new Error((await parseRes.json()).error || "Parse failed");
+
+      const { matched, unmatched, missing } = await parseRes.json();
+
+      // Merge parsed sections into editor state
+      setSectionContents((prev) => {
+        const merged = { ...prev };
+        for (const section of matched as ParsedSectionResult[]) {
+          // Only overwrite if currently empty, or this is a fresh upload
+          if (!merged[section.sectionKey]?.trim() || step === "idle") {
+            merged[section.sectionKey] = section.content;
+          }
+        }
+        return merged;
       });
 
-      if (!uploadRes.ok) {
-        const err = await uploadRes.json();
-        throw new Error(err.error || "Upload failed");
-      }
-
-      const { text } = await uploadRes.json();
-      setExtractedText(text);
-
-      if (useLegacy) {
-        setLegacySummary(text.slice(0, 2000));
-      } else if (templateSections.length > 0) {
-        const parsed = parseSectionsFromText(text, templateSections);
-        setSectionContents((prev) => {
-          // Merge: only overwrite sections that were empty
-          const merged = { ...prev };
-          for (const [key, val] of Object.entries(parsed)) {
-            if (!merged[key]?.trim()) {
-              merged[key] = val;
-            }
-          }
-          return merged;
-        });
-      }
-
+      setUnmatchedHeadings(unmatched || []);
       setStep("editing");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
@@ -120,9 +165,15 @@ export default function NodeAdminPage() {
     }
   }
 
+  function getActiveTemplateSections(): NodeTemplateSection[] {
+    return templateSections.filter(
+      (t) => !disabledConditionals.has(t.sectionKey)
+    );
+  }
+
   function getValidationErrors(): string[] {
     const errors: string[] = [];
-    for (const t of templateSections) {
+    for (const t of getActiveTemplateSections()) {
       if (t.isRequired && t.displayLayer === "CHAPTER") {
         const content = sectionContents[t.sectionKey]?.trim();
         if (!content) {
@@ -144,7 +195,7 @@ export default function NodeAdminPage() {
     } else {
       const missing = getValidationErrors();
       if (missing.length > 0) {
-        setError(`Required sections missing content: ${missing.join(", ")}`);
+        setError(`Required CHAPTER sections missing: ${missing.join(", ")}`);
         return;
       }
     }
@@ -160,7 +211,7 @@ export default function NodeAdminPage() {
       if (useLegacy) {
         body.execSummary = legacySummary;
       } else {
-        body.sections = templateSections
+        body.sections = getActiveTemplateSections()
           .filter((t) => sectionContents[t.sectionKey]?.trim())
           .map((t) => ({
             sectionKey: t.sectionKey,
@@ -210,10 +261,15 @@ export default function NodeAdminPage() {
     );
   }
 
-  const chapterSections = templateSections.filter((t) => t.displayLayer === "CHAPTER");
-  const fullSections = templateSections.filter((t) => t.displayLayer === "FULL");
-  const filledCount = templateSections.filter(
+  const activeSections = getActiveTemplateSections();
+  const chapterSections = activeSections.filter((t) => t.displayLayer === "CHAPTER");
+  const fullSections = activeSections.filter((t) => t.displayLayer === "FULL");
+  const filledCount = activeSections.filter(
     (t) => sectionContents[t.sectionKey]?.trim()
+  ).length;
+  const requiredChapterCount = chapterSections.filter((t) => t.isRequired).length;
+  const filledRequiredChapterCount = chapterSections.filter(
+    (t) => t.isRequired && sectionContents[t.sectionKey]?.trim()
   ).length;
 
   return (
@@ -269,7 +325,10 @@ export default function NodeAdminPage() {
             </span>
             {!useLegacy && templateSections.length > 0 && step === "editing" && (
               <span className="text-xs text-gray-400">
-                {filledCount} of {templateSections.length} sections filled
+                {filledCount} of {activeSections.length} sections filled
+                {requiredChapterCount > 0 && (
+                  <> &middot; {filledRequiredChapterCount}/{requiredChapterCount} required chapters</>
+                )}
               </span>
             )}
           </div>
@@ -310,7 +369,7 @@ export default function NodeAdminPage() {
             <p className="text-sm text-gray-500 mb-3">
               {step === "done"
                 ? "Upload another document to revise"
-                : "Upload a .docx, .pdf, or .md to begin populating sections"}
+                : "Upload a .docx file — sections will be auto-parsed from Heading 1 markers"}
             </p>
             <label className="inline-flex items-center gap-2 bg-otm-teal text-white text-sm font-medium px-5 py-2.5 rounded-lg cursor-pointer hover:bg-otm-teal/90 transition-colors">
               Choose file
@@ -335,12 +394,14 @@ export default function NodeAdminPage() {
           </div>
         )}
 
-        {/* Extracting progress */}
-        {(step === "uploading" || step === "extracting") && (
+        {/* Parsing progress */}
+        {(step === "uploading" || step === "parsing") && (
           <div className="bg-white border border-gray-200 rounded-lg p-5 mb-6">
             <div className="flex items-center gap-3">
               <div className="w-5 h-5 border-2 border-otm-teal border-t-transparent rounded-full animate-spin" />
-              <p className="text-sm text-otm-gray">Extracting text from document...</p>
+              <p className="text-sm text-otm-gray">
+                {step === "uploading" ? "Uploading..." : "Parsing document sections..."}
+              </p>
             </div>
           </div>
         )}
@@ -355,114 +416,148 @@ export default function NodeAdminPage() {
           </div>
         )}
 
+        {/* Unmatched headings warning */}
+        {step === "editing" && unmatchedHeadings.length > 0 && (
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4">
+            <p className="text-sm text-amber-800 font-medium mb-1">
+              {unmatchedHeadings.length} heading{unmatchedHeadings.length > 1 ? "s" : ""} not matched to template
+            </p>
+            <ul className="text-xs text-amber-700 list-disc pl-4">
+              {unmatchedHeadings.map((h, i) => (
+                <li key={i}>{h}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {/* Upload filename badge */}
+        {step === "editing" && uploadedFilename && !useLegacy && (
+          <div className="flex items-center gap-2 mb-4">
+            <span className="text-xs text-gray-400">Parsed from:</span>
+            <span className="text-xs bg-white border border-gray-200 px-2 py-1 rounded text-otm-gray">
+              {uploadedFilename}
+            </span>
+          </div>
+        )}
+
+        {/* Conditional section toggle */}
+        {step === "editing" && !useLegacy && hasConditionalSections && (
+          <div className="bg-white border border-gray-200 rounded-lg p-4 mb-4">
+            <label className="flex items-center gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={disabledConditionals.size === 0}
+                onChange={toggleConditionalSections}
+                className="rounded border-gray-300 text-otm-teal focus:ring-otm-teal"
+              />
+              <div>
+                <span className="text-sm font-medium text-otm-navy">
+                  Include Voice of Customer sections
+                </span>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  Enable when the engagement includes primary research (interviews/surveys)
+                </p>
+              </div>
+            </label>
+          </div>
+        )}
+
         {/* Section editor */}
         {step === "editing" && !useLegacy && (
-          <div className="flex flex-col lg:flex-row gap-6">
-            {/* Left: Section editors */}
-            <div className="flex-1 space-y-4">
-              {/* CHAPTER sections */}
-              {chapterSections.length > 0 && (
-                <div>
-                  <h2 className="text-[11px] uppercase text-gray-400 tracking-[0.06em] mb-3 flex items-center gap-2">
-                    Chapter Sections
-                    <span className="text-[10px] bg-otm-teal/10 text-otm-teal px-1.5 py-0.5 rounded normal-case tracking-normal">
-                      Client-facing
-                    </span>
-                  </h2>
-                  <div className="space-y-3">
-                    {chapterSections.map((t) => (
-                      <SectionEditor
-                        key={t.sectionKey}
-                        template={t}
-                        content={sectionContents[t.sectionKey] || ""}
-                        onChange={(val) => updateSectionContent(t.sectionKey, val)}
-                      />
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* FULL sections */}
-              {fullSections.length > 0 && (
-                <div>
-                  <h2 className="text-[11px] uppercase text-gray-400 tracking-[0.06em] mb-3 mt-6 flex items-center gap-2">
-                    Detail Sections
-                    <span className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded normal-case tracking-normal">
-                      Behind expander / download
-                    </span>
-                  </h2>
-                  <div className="space-y-3">
-                    {fullSections.map((t) => (
-                      <SectionEditor
-                        key={t.sectionKey}
-                        template={t}
-                        content={sectionContents[t.sectionKey] || ""}
-                        onChange={(val) => updateSectionContent(t.sectionKey, val)}
-                      />
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Cascade trigger checkbox — only for revisions */}
-              {isRevision && (
-                <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
-                  <label className="flex items-start gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={triggerCascade}
-                      onChange={(e) => setTriggerCascade(e.target.checked)}
-                      className="mt-0.5 rounded border-gray-300"
+          <div className="space-y-4">
+            {/* CHAPTER sections */}
+            {chapterSections.length > 0 && (
+              <div>
+                <h2 className="text-[11px] uppercase text-gray-400 tracking-[0.06em] mb-3 flex items-center gap-2">
+                  Chapter Sections
+                  <span className="text-[10px] bg-otm-teal/10 text-otm-teal px-1.5 py-0.5 rounded normal-case tracking-normal">
+                    Client-facing
+                  </span>
+                </h2>
+                <div className="space-y-3">
+                  {chapterSections.map((t) => (
+                    <SectionEditor
+                      key={t.sectionKey}
+                      template={t}
+                      content={sectionContents[t.sectionKey] || ""}
+                      onChange={(val) => updateSectionContent(t.sectionKey, val)}
                     />
-                    <div>
-                      <span className="text-sm font-medium text-amber-800">
-                        This revision affects downstream deliverables
-                      </span>
-                      <p className="text-xs text-amber-700 mt-1">
-                        Check this if the strategic direction, ICP, or positioning
-                        has changed. Leave unchecked for informational updates.
-                      </p>
-                    </div>
-                  </label>
-                </div>
-              )}
-
-              {/* Publish button */}
-              <div className="flex items-center gap-3 pt-2">
-                <button
-                  onClick={handlePublish}
-                  className="bg-otm-teal text-white text-sm font-medium px-5 py-2.5 rounded-lg hover:bg-otm-teal/90 transition-colors"
-                >
-                  Publish to portal
-                </button>
-                <button
-                  onClick={() => {
-                    setStep("idle");
-                    setSectionContents({});
-                    setExtractedText("");
-                  }}
-                  className="text-sm text-gray-500 hover:text-gray-700 px-4 py-2.5"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-
-            {/* Right: Document reference */}
-            {extractedText && (
-              <div className="w-full lg:w-80 shrink-0">
-                <div className="lg:sticky lg:top-8">
-                  <h3 className="text-[11px] uppercase text-gray-400 tracking-[0.06em] mb-2">
-                    Document Reference
-                  </h3>
-                  <div className="bg-white border border-gray-200 rounded-lg p-4 max-h-[calc(100vh-12rem)] overflow-y-auto">
-                    <pre className="text-xs text-gray-500 whitespace-pre-wrap font-lato leading-relaxed">
-                      {extractedText}
-                    </pre>
-                  </div>
+                  ))}
                 </div>
               </div>
             )}
+
+            {/* FULL sections */}
+            {fullSections.length > 0 && (
+              <div>
+                <h2 className="text-[11px] uppercase text-gray-400 tracking-[0.06em] mb-3 mt-6 flex items-center gap-2">
+                  Detail Sections
+                  <span className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded normal-case tracking-normal">
+                    Behind expander / download
+                  </span>
+                </h2>
+                <div className="space-y-3">
+                  {fullSections.map((t) => (
+                    <SectionEditor
+                      key={t.sectionKey}
+                      template={t}
+                      content={sectionContents[t.sectionKey] || ""}
+                      onChange={(val) => updateSectionContent(t.sectionKey, val)}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Cascade trigger checkbox — only for revisions */}
+            {isRevision && (
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                <label className="flex items-start gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={triggerCascade}
+                    onChange={(e) => setTriggerCascade(e.target.checked)}
+                    className="mt-0.5 rounded border-gray-300"
+                  />
+                  <div>
+                    <span className="text-sm font-medium text-amber-800">
+                      This revision affects downstream deliverables
+                    </span>
+                    <p className="text-xs text-amber-700 mt-1">
+                      Check this if the strategic direction, ICP, or positioning
+                      has changed. Leave unchecked for informational updates.
+                    </p>
+                  </div>
+                </label>
+              </div>
+            )}
+
+            {/* Publish button */}
+            <div className="flex items-center gap-3 pt-2">
+              <button
+                onClick={handlePublish}
+                disabled={filledRequiredChapterCount < requiredChapterCount}
+                className="bg-otm-teal text-white text-sm font-medium px-5 py-2.5 rounded-lg hover:bg-otm-teal/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Publish to portal
+              </button>
+              <button
+                onClick={() => {
+                  setStep("idle");
+                  setSectionContents({});
+                  setUnmatchedHeadings([]);
+                  setUploadedFilename("");
+                }}
+                className="text-sm text-gray-500 hover:text-gray-700 px-4 py-2.5"
+              >
+                Cancel
+              </button>
+              {filledRequiredChapterCount < requiredChapterCount && (
+                <span className="text-xs text-gray-400">
+                  All required chapter sections must have content to publish
+                </span>
+              )}
+            </div>
           </div>
         )}
 
@@ -552,8 +647,10 @@ function SectionEditor({
   content: string;
   onChange: (val: string) => void;
 }) {
-  const [preview, setPreview] = useState(false);
+  const [editing, setEditing] = useState(false);
   const isChapter = template.displayLayer === "CHAPTER";
+  const hasContent = content.trim().length > 0;
+  const looksLikeHtml = content.includes("<") && content.includes(">");
 
   return (
     <div
@@ -563,6 +660,14 @@ function SectionEditor({
     >
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
+          {/* Match indicator */}
+          <span className={`w-5 h-5 rounded-full flex items-center justify-center text-xs ${
+            hasContent
+              ? "bg-otm-teal/10 text-otm-teal"
+              : "bg-gray-100 text-gray-300"
+          }`}>
+            {hasContent ? "✓" : "○"}
+          </span>
           <h4 className="text-sm font-medium text-otm-navy">
             {template.sectionTitle}
           </h4>
@@ -579,30 +684,38 @@ function SectionEditor({
             {template.displayLayer}
           </span>
         </div>
-        {content.trim() && (
-          <button
-            onClick={() => setPreview(!preview)}
-            className="text-[10px] text-gray-400 hover:text-otm-teal transition-colors"
-          >
-            {preview ? "Edit" : "Preview"}
-          </button>
-        )}
+        <button
+          onClick={() => setEditing(!editing)}
+          className="text-[11px] text-gray-400 hover:text-otm-teal transition-colors px-2 py-1 rounded hover:bg-gray-50"
+        >
+          {editing ? "Preview" : hasContent ? "Edit" : "Write"}
+        </button>
       </div>
       {template.description && (
-        <p className="text-xs text-gray-400 mb-2">{template.description}</p>
+        <p className="text-xs text-gray-400 mb-2 ml-7">{template.description}</p>
       )}
-      {preview ? (
-        <div className="border border-gray-200 rounded-lg p-3 min-h-[80px]">
-          <SummaryContent content={content} />
+
+      {editing ? (
+        <div className="ml-7">
+          <textarea
+            value={content}
+            onChange={(e) => onChange(e.target.value)}
+            rows={isChapter ? 6 : 4}
+            placeholder={looksLikeHtml
+              ? "Edit HTML content..."
+              : `Enter ${template.sectionTitle.toLowerCase()} content (HTML supported)...`
+            }
+            className="w-full border border-gray-200 rounded-lg p-3 text-sm text-otm-gray leading-relaxed resize-y focus:outline-none focus:border-otm-teal font-mono text-xs"
+          />
+        </div>
+      ) : hasContent ? (
+        <div className="ml-7 border border-gray-100 rounded-lg p-3 bg-gray-50/30">
+          <SectionHtml content={content} />
         </div>
       ) : (
-        <textarea
-          value={content}
-          onChange={(e) => onChange(e.target.value)}
-          rows={isChapter ? 5 : 4}
-          placeholder={`Enter ${template.sectionTitle.toLowerCase()} content...`}
-          className="w-full border border-gray-200 rounded-lg p-3 text-sm text-otm-gray leading-relaxed resize-y focus:outline-none focus:border-otm-teal"
-        />
+        <p className="text-xs text-gray-300 italic ml-7">
+          {template.isRequired ? "Required — not yet populated" : "Optional — not found in document"}
+        </p>
       )}
     </div>
   );
