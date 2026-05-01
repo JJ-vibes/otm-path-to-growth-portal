@@ -228,11 +228,11 @@ export default function NodeProgressionStrip({
   }
 
   // Desktop: horizontal row of cards
-  // NOTE: brief §6.3 specifies min-width 160px; reduced to 140 here so 7 cards
-  // fit alongside the 240px CascadeNav. Overflow-x is set as a graceful
-  // fallback at narrower widths.
+  // NOTE: brief §6.3 specifies min-width 160px and gap-3; reduced to 128/gap-2
+  // so 7 cards fit alongside the 240px CascadeNav at ~1280px viewport without
+  // visible clipping. Overflow-x kicks in below ~1100px main-area width.
   return (
-    <div className="flex gap-3 items-stretch overflow-x-auto pb-2 -mb-2 pt-2">
+    <div className="flex gap-2 items-stretch overflow-x-auto pb-2 -mb-2 pt-2">
       {sorted.map((node, idx) => {
         const status = getDisplayStatus(node);
         const colors = STATUS_COLORS[status];
@@ -246,8 +246,8 @@ export default function NodeProgressionStrip({
           backgroundColor: colors.bg,
           border: `2px solid ${colors.border}`,
           borderRadius: 6,
-          padding: 16,
-          minWidth: 140,
+          padding: 14,
+          minWidth: 128,
           height: 240,
           display: "flex",
           flexDirection: "column",
