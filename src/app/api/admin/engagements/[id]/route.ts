@@ -31,3 +31,38 @@ export async function PATCH(
     return NextResponse.json({ error: "Engagement not found" }, { status: 404 });
   }
 }
+
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const user = await getSessionUser();
+  if (!user || user.role !== "ADMIN") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+  const { id } = await params;
+
+  // Require the caller to confirm by repeating the engagement's clientName.
+  // This is the second step of the two-step delete flow.
+  const body = await req.json().catch(() => ({}));
+  const confirm = typeof body.confirmName === "string" ? body.confirmName : "";
+
+  const engagement = await prisma.engagement.findUnique({
+    where: { id },
+    select: { id: true, clientName: true },
+  });
+  if (!engagement) {
+    return NextResponse.json({ error: "Engagement not found" }, { status: 404 });
+  }
+  if (confirm.trim() !== engagement.clientName) {
+    return NextResponse.json(
+      { error: "Confirmation text doesn't match the client name" },
+      { status: 400 }
+    );
+  }
+
+  // Schema cascades: deleting the engagement removes nodes, dependencies,
+  // versions, sections, cascade flags, engagement users, and node configs.
+  await prisma.engagement.delete({ where: { id } });
+  return NextResponse.json({ success: true });
+}

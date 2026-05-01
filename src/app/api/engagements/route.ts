@@ -25,51 +25,49 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Client name is required" }, { status: 400 });
     }
 
-    // Create engagement
-    const engagement = await prisma.engagement.create({
-      data: {
-        clientName: clientName.trim(),
-        lifecycleStage: "Traction",
-      },
-    });
-
-    // Link admin to engagement
-    await prisma.engagementUser.create({
-      data: { userId: user.id, engagementId: engagement.id },
-    });
-
-    // Create all 7 nodes
-    const nodeMap = new Map<string, string>();
-    for (const template of STAGE_1_NODES) {
-      const node = await prisma.node.create({
+    // Wrap the entire setup in a transaction so a partial failure rolls
+    // back cleanly — otherwise the client sees an error while a half-built
+    // engagement is left in the database.
+    const engagement = await prisma.$transaction(async (tx) => {
+      const eng = await tx.engagement.create({
         data: {
-          engagementId: engagement.id,
-          nodeKey: template.nodeKey,
-          displayName: template.displayName,
-          sortOrder: template.sortOrder,
-          isGate: template.isGate,
-          isConditional: template.isConditional,
-          status: "locked",
+          clientName: clientName.trim(),
+          lifecycleStage: "Traction",
         },
       });
-      nodeMap.set(template.nodeKey, node.id);
-    }
 
-    // Create dependencies
-    for (const template of STAGE_1_NODES) {
-      const nodeId = nodeMap.get(template.nodeKey)!;
-      for (const depKey of template.dependsOn) {
-        const depId = nodeMap.get(depKey)!;
-        await prisma.nodeDependency.create({
-          data: { nodeId, dependsOnNodeId: depId },
+      await tx.engagementUser.create({
+        data: { userId: user.id, engagementId: eng.id },
+      });
+
+      const nodeMap = new Map<string, string>();
+      for (const template of STAGE_1_NODES) {
+        const node = await tx.node.create({
+          data: {
+            engagementId: eng.id,
+            nodeKey: template.nodeKey,
+            displayName: template.displayName,
+            sortOrder: template.sortOrder,
+            isGate: template.isGate,
+            isConditional: template.isConditional,
+            // KBI starts active; everything else locked.
+            status: template.nodeKey === "key-business-info" ? "active" : "locked",
+          },
         });
+        nodeMap.set(template.nodeKey, node.id);
       }
-    }
 
-    // Set KBI to active (first node, no dependencies)
-    await prisma.node.updateMany({
-      where: { engagementId: engagement.id, nodeKey: "key-business-info" },
-      data: { status: "active" },
+      for (const template of STAGE_1_NODES) {
+        const nodeId = nodeMap.get(template.nodeKey)!;
+        for (const depKey of template.dependsOn) {
+          const depId = nodeMap.get(depKey)!;
+          await tx.nodeDependency.create({
+            data: { nodeId, dependsOnNodeId: depId },
+          });
+        }
+      }
+
+      return eng;
     });
 
     return NextResponse.json({ engagement });
