@@ -36,14 +36,7 @@ export async function POST(
       );
     }
 
-    // html-to-docx ESM/CJS interop varies by version; resolve the function dynamically.
-    const mod = (await import("html-to-docx")) as unknown as {
-      default?: (html: string, header: null, opts: Record<string, unknown>) => Promise<Buffer>;
-    } & ((html: string, header: null, opts: Record<string, unknown>) => Promise<Buffer>);
-    const HTMLtoDOCX =
-      typeof mod === "function"
-        ? (mod as (html: string, header: null, opts: Record<string, unknown>) => Promise<Buffer>)
-        : mod.default!;
+    const { default: HTMLtoDOCX } = await import("html-to-docx");
 
     const htmlBody = exportable.sections
       .map((s) => `<h1>${escapeHtml(s.displayName)}</h1>${s.contentHtml || ""}`)

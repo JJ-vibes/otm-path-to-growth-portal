@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@/generated/prisma/client";
 import { getSessionUser } from "@/lib/session";
 
 export async function PATCH(
@@ -18,10 +19,10 @@ export async function PATCH(
     return NextResponse.json({ error: "Node not found" }, { status: 404 });
   }
 
-  const data: { excluded?: boolean; sectionToggles?: unknown } = {};
+  const data: { excluded?: boolean; sectionToggles?: Prisma.InputJsonValue } = {};
   if (typeof body.excluded === "boolean") data.excluded = body.excluded;
   if (body.sectionToggles && typeof body.sectionToggles === "object") {
-    data.sectionToggles = body.sectionToggles;
+    data.sectionToggles = body.sectionToggles as Prisma.InputJsonValue;
   }
 
   const cfg = await prisma.engagementNodeConfig.upsert({

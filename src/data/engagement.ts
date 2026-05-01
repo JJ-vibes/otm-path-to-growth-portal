@@ -88,6 +88,7 @@ export function buildEngagement(raw: RawEngagement): Engagement {
   const nodes: CascadeNode[] = raw.nodes.map((node) => ({
     ...node,
     status: node.status as NodeStatus,
+    lockedIn: false,
     upstreamNames: node.dependsOn.map((k) => keyToName.get(k) || k),
     downstreamNames: downstreamMap.get(node.nodeKey) || [],
   }));

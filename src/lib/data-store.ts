@@ -173,6 +173,7 @@ export async function getEngagementData(engagementId?: string) {
     status: node.status,
     dependsOn: node.dependsOn.map((d) => d.dependsOnNode.nodeKey),
     execSummary: node.versions[0]?.execSummary ?? undefined,
+    lockedIn: node.lockedIn,
   }));
 
   return {
@@ -291,6 +292,7 @@ export async function updateNode(
     status: updated.status,
     dependsOn: updated.dependsOn.map((d) => d.dependsOnNode.nodeKey),
     execSummary: updated.versions[0]?.execSummary ?? undefined,
+    lockedIn: updated.lockedIn,
   };
 }
 
