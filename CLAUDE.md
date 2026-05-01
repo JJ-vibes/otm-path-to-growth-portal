@@ -217,11 +217,20 @@ Both `DATABASE_URL` and `DIRECT_DATABASE_URL` use the **internal** Postgres URL 
 - NEXTAUTH_URL and SECRET have fallbacks in `next.config.ts` for Railway compatibility
 
 ### Pushing Schema Changes to Production
-1. Enable public networking on the Postgres service (Settings > Networking)
-2. Copy the public URL (e.g. `postgresql://...@gondola.proxy.rlwy.net:46199/railway`)
-3. Run: `DIRECT_DATABASE_URL="<public-url>" DATABASE_URL="<public-url>" npx prisma db push`
-4. Optionally re-seed: `DIRECT_DATABASE_URL="<public-url>" DATABASE_URL="<public-url>" npx prisma db seed`
-5. Disable public networking when done (avoids egress fees)
+
+Public networking is left enabled on the Postgres service. The public URL is stored in `.env.railway` (gitignored) on the dev machine. Schema changes deploy in one command:
+
+```bash
+npm run db:push:prod
+```
+
+Under the hood: `dotenv-cli` loads `.env.railway` and runs `prisma db push`. To re-seed (rare):
+
+```bash
+npx dotenv -e .env.railway -- prisma db seed
+```
+
+If you ever rotate the Postgres password, regenerate `.env.railway` with the new public URL.
 
 ---
 
