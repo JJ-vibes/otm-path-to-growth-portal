@@ -1,8 +1,7 @@
 import Link from "next/link";
-import { Lock, Download } from "lucide-react";
+import { Lock } from "lucide-react";
 import TopBar from "@/components/TopBar";
 import GrowthLifecycle from "@/components/GrowthLifecycle";
-import { prisma } from "@/lib/prisma";
 import { getEngagementFresh } from "@/lib/data-store";
 import { getUserEngagementId, getSessionUser } from "@/lib/session";
 import { redirect } from "next/navigation";
@@ -21,11 +20,6 @@ export default async function PortalHomePage() {
   const completed = visibleNodes.filter((n) => n.status === "complete").length;
   const total = visibleNodes.length;
   const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
-
-  const assets = await prisma.engagementAsset.findMany({
-    where: { engagementId },
-    orderBy: { uploadedAt: "desc" },
-  });
 
   return (
     <div className="min-h-screen bg-otm-light">
@@ -56,29 +50,6 @@ export default async function PortalHomePage() {
           />
         </div>
 
-        {assets.length > 0 && (
-          <section className="mt-10">
-            <h2 className="font-outfit font-semibold text-otm-navy text-lg mb-3">
-              Resources
-            </h2>
-            <div className="bg-white border border-gray-200 rounded-xl divide-y divide-gray-100">
-              {assets.map((a) => (
-                <a
-                  key={a.id}
-                  href={`/api/documents/${encodeURIComponent(a.url)}`}
-                  download={a.filename}
-                  className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors"
-                >
-                  <Download size={16} className="text-otm-teal shrink-0" />
-                  <span className="text-sm text-otm-navy flex-1 truncate">{a.filename}</span>
-                  <span className="text-xs text-gray-400">
-                    {new Date(a.uploadedAt).toLocaleDateString()}
-                  </span>
-                </a>
-              ))}
-            </div>
-          </section>
-        )}
       </main>
     </div>
   );

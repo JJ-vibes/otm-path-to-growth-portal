@@ -55,7 +55,6 @@ model Engagement {
   nodes          Node[]
   users          EngagementUser[]
   nodeConfigs    EngagementNodeConfig[]
-  assets         EngagementAsset[]
 }
 
 model EngagementUser {
@@ -178,16 +177,3 @@ model EngagementNodeConfig {
   @@unique([engagementId, nodeId])
 }
 
-model EngagementAsset {
-  id           String     @id @default(cuid())
-  engagementId String
-  filename     String
-  url          String
-  mimeType     String
-  sizeBytes    Int
-  uploadedAt   DateTime   @default(now())
-  uploadedBy   String
-  engagement   Engagement @relation(fields: [engagementId], references: [id], onDelete: Cascade)
-
-  @@index([engagementId])
-}

@@ -8,7 +8,6 @@ import OverviewTab from "./OverviewTab";
 import UsersTab from "./UsersTab";
 import SettingsTab from "./SettingsTab";
 import BrandingTab from "./BrandingTab";
-import AssetsTab from "./AssetsTab";
 
 export const dynamic = "force-dynamic";
 
@@ -18,7 +17,6 @@ const TABS = [
   { key: "users", label: "Users" },
   { key: "settings", label: "Settings" },
   { key: "branding", label: "Branding" },
-  { key: "assets", label: "Assets" },
 ] as const;
 
 type TabKey = (typeof TABS)[number]["key"];
@@ -121,7 +119,6 @@ export default async function EngagementDetailPage({
             clientLogoUrl={engagementRow.clientLogoUrl}
           />
         )}
-        {tab === "assets" && <AssetsTab engagementId={id} />}
       </main>
     </div>
   );

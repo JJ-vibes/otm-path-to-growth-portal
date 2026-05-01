@@ -3,24 +3,46 @@
 import { useState } from "react";
 import { CascadeNode, NodeStatus } from "@/data/engagement";
 
-function StatusCircle({ status, isGate }: { status: NodeStatus; isGate: boolean }) {
+function StatusCircle({
+  status,
+  isGate,
+  lockedIn,
+}: {
+  status: NodeStatus;
+  isGate: boolean;
+  lockedIn: boolean;
+}) {
   const base = "w-[18px] h-[18px] rounded-full flex items-center justify-center shrink-0";
 
   const gateRing = isGate ? "ring-2 ring-red-600 ring-offset-1" : "";
 
   switch (status) {
     case "complete":
+      if (lockedIn) {
+        // Locked-in: navy filled circle with white lock icon
+        return (
+          <span className={`${base} bg-otm-navy ${gateRing}`}>
+            <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <rect x="5" y="11" width="14" height="10" rx="2" />
+              <path d="M8 11V7a4 4 0 118 0v4" />
+            </svg>
+          </span>
+        );
+      }
+      // Awaiting approval: gold accent (filled out, not yet approved). Dark
+      // check on gold — never white text on yellow.
       return (
-        <span className={`${base} bg-otm-teal ${gateRing}`}>
-          <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+        <span className={`${base} ${gateRing}`} style={{ backgroundColor: "#e7a923" }}>
+          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="#0d354f" strokeWidth={3}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
           </svg>
         </span>
       );
     case "active":
+      // In progress / "you are here": gold accent ring + gold dot
       return (
-        <span className={`${base} border-2 border-otm-teal ${gateRing}`}>
-          <span className="w-[5px] h-[5px] rounded-full bg-otm-teal" />
+        <span className={`${base} ${gateRing}`} style={{ border: "2px solid #e7a923" }}>
+          <span className="w-[5px] h-[5px] rounded-full" style={{ backgroundColor: "#e7a923" }} />
         </span>
       );
     case "locked":
@@ -47,13 +69,13 @@ function StatusCircle({ status, isGate }: { status: NodeStatus; isGate: boolean 
   }
 }
 
-function nameColor(status: NodeStatus, isGate: boolean): string {
+function nameColor(status: NodeStatus, isGate: boolean, lockedIn: boolean): string {
   if (isGate) return "text-red-600";
   switch (status) {
     case "complete":
-      return "text-otm-navy";
+      return lockedIn ? "text-otm-navy" : "text-otm-navy font-medium";
     case "active":
-      return "text-otm-teal font-medium";
+      return "text-otm-navy font-medium";
     case "locked":
       return "text-gray-400 opacity-50";
     case "flagged":
@@ -128,9 +150,9 @@ export default function CascadeNav({
                       : "border-l-[3px] border-l-transparent"
                   } ${isClickable ? "cursor-pointer hover:bg-gray-50" : "cursor-default"}`}
                 >
-                  <StatusCircle status={node.status} isGate={node.isGate} />
+                  <StatusCircle status={node.status} isGate={node.isGate} lockedIn={node.lockedIn} />
                   <div className="flex flex-col">
-                    <span className={`text-[13px] font-lato leading-tight ${nameColor(node.status, node.isGate)}`}>
+                    <span className={`text-[13px] font-lato leading-tight ${nameColor(node.status, node.isGate, node.lockedIn)}`}>
                       {node.displayName}
                     </span>
                     {node.status === "complete" && node.sections && node.sections.length > 0 && (
