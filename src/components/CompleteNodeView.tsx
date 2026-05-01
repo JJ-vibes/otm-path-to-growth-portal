@@ -114,9 +114,21 @@ export default function CompleteNodeView({ node }: { node: CascadeNode }) {
 
       {/* Action buttons */}
       <div className="flex items-center gap-3">
-        <button className="text-xs px-4 py-2 border border-gray-300 rounded-lg text-otm-gray hover:bg-gray-50 transition-colors">
-          Download full document
-        </button>
+        {node.documentUrl ? (
+          <a
+            href={`/api/documents/${encodeURIComponent(node.documentUrl)}`}
+            target="_blank"
+            rel="noopener"
+            download
+            className="text-xs px-4 py-2 border border-gray-300 rounded-lg text-otm-gray hover:bg-gray-50 transition-colors"
+          >
+            Download full document
+          </a>
+        ) : (
+          <span className="text-xs px-4 py-2 text-gray-400 italic">
+            (no source document attached)
+          </span>
+        )}
         <button
           onClick={() => window.print()}
           className="text-xs px-4 py-2 border border-gray-300 rounded-lg text-otm-gray hover:bg-gray-50 transition-colors"

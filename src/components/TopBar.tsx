@@ -5,7 +5,13 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
 
-export default function TopBar({ clientName }: { clientName: string }) {
+export default function TopBar({
+  clientName,
+  clientLogoUrl,
+}: {
+  clientName: string;
+  clientLogoUrl?: string | null;
+}) {
   const pathname = usePathname();
   const { data: session } = useSession();
   const isStrategy = pathname === "/portal/strategy";
@@ -14,6 +20,17 @@ export default function TopBar({ clientName }: { clientName: string }) {
   return (
     <header className="w-full bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between shrink-0">
       <div className="flex items-center gap-4">
+        {clientLogoUrl && (
+          <>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={`/api/documents/${encodeURIComponent(clientLogoUrl)}`}
+              alt={`${clientName} logo`}
+              className="h-8 w-auto max-w-[160px] object-contain"
+            />
+            <span className="h-6 w-px bg-gray-200" aria-hidden />
+          </>
+        )}
         <Link href="/portal">
           <Image src="/otm-logo.png" alt="OTM" width={80} height={32} className="h-8 w-auto" />
         </Link>

@@ -10,6 +10,7 @@ export interface NodeData {
   status: string;
   dependsOn: string[];
   execSummary?: string;
+  lockedIn: boolean;
 }
 
 /**
@@ -31,6 +32,7 @@ export async function getEngagementFresh(engagementId?: string): Promise<Engagem
                 take: 1,
                 include: { sections: { orderBy: { sortOrder: "asc" } } },
               },
+              configs: { where: { engagementId } },
             },
           },
         },
@@ -47,6 +49,7 @@ export async function getEngagementFresh(engagementId?: string): Promise<Engagem
                 take: 1,
                 include: { sections: { orderBy: { sortOrder: "asc" } } },
               },
+              configs: true,
             },
           },
         },
@@ -85,6 +88,7 @@ export async function getEngagementFresh(engagementId?: string): Promise<Engagem
         }))
       : undefined;
 
+    const cfg = node.configs?.[0];
     return {
       nodeKey: node.nodeKey,
       displayName: node.displayName,
@@ -94,7 +98,11 @@ export async function getEngagementFresh(engagementId?: string): Promise<Engagem
       status: node.status as NodeStatus,
       dependsOn: node.dependsOn.map((d) => d.dependsOnNode.nodeKey),
       execSummary: currentVersion?.execSummary ?? undefined,
+      documentUrl: currentVersion?.documentUrl ?? null,
       sections,
+      lockedIn: node.lockedIn,
+      lockedInAt: node.lockedInAt?.toISOString() ?? null,
+      excluded: cfg?.excluded ?? false,
       upstreamNames: node.dependsOn.map((d) => d.dependsOnNode.displayName),
       downstreamNames: node.dependedOnBy.map((d) => d.node.displayName),
     };
@@ -103,6 +111,7 @@ export async function getEngagementFresh(engagementId?: string): Promise<Engagem
   return {
     clientName: engagement.clientName,
     lifecycleStage: engagement.lifecycleStage,
+    clientLogoUrl: engagement.clientLogoUrl ?? null,
     nodes,
     flags: cascadeFlags,
   };
@@ -187,6 +196,7 @@ export async function getEngagementData(engagementId?: string) {
 export async function updateNode(
   nodeKey: string,
   updates: Partial<Pick<NodeData, "status" | "execSummary">> & {
+    documentUrl?: string | null;
     sections?: Array<{
       sectionKey: string;
       sectionTitle: string;
@@ -228,11 +238,18 @@ export async function updateNode(
     });
 
     const lastVersion = node.versions[0];
+    // If a fresh document was just uploaded (`updates.documentUrl` is set),
+    // the source-of-truth .docx matches portal state — sync is clean.
+    // Otherwise the publish came from in-portal section edits, so the existing
+    // .docx is stale relative to the new portal content.
+    const docxOutOfSync = updates.documentUrl == null;
     const newVersion = await prisma.nodeVersion.create({
       data: {
         nodeId: node.id,
         versionNumber: (lastVersion?.versionNumber ?? 0) + 1,
         execSummary: updates.execSummary,
+        documentUrl: updates.documentUrl ?? lastVersion?.documentUrl ?? null,
+        docxOutOfSync,
         isCurrent: true,
       },
     });
@@ -354,48 +371,90 @@ export async function getNodesForEngagement(engagementId?: string): Promise<Node
     status: node.status,
     dependsOn: node.dependsOn.map((d) => d.dependsOnNode.nodeKey),
     execSummary: node.versions[0]?.execSummary ?? undefined,
+    lockedIn: node.lockedIn,
   }));
 }
 
+export interface CascadeApplyResult {
+  flagCount: number;
+  flaggedNodeKeys: string[];
+  cascadingNodeKeys: string[];
+  unlockedNodeKeys: string[];
+}
+
 /**
- * Apply cascade flag propagation results to the database.
+ * Apply cascade flag propagation results to the database transactionally.
+ * Status changes, new flag rows, and lockedIn auto-unlocks all succeed
+ * together or all fail together.
  */
 export async function applyCascadeResults(
   engagementId: string,
-  sourceNodeKey: string,
+  _sourceNodeKey: string,
   updatedNodes: NodeData[],
-  newFlags: CascadeFlag[]
-): Promise<number> {
-  // Update node statuses
-  for (const node of updatedNodes) {
-    await prisma.node.updateMany({
-      where: { engagementId, nodeKey: node.nodeKey },
-      data: { status: node.status as NodeStatus },
-    });
-  }
+  newFlags: CascadeFlag[],
+  unlockedNodeKeys: string[] = []
+): Promise<CascadeApplyResult> {
+  // Resolve all node keys → IDs in one query so the transaction is short.
+  const allKeys = new Set<string>([
+    ...updatedNodes.map((n) => n.nodeKey),
+    ...newFlags.flatMap((f) => [f.flaggedNodeKey, f.sourceNodeKey]),
+    ...unlockedNodeKeys,
+  ]);
+  const dbNodes = await prisma.node.findMany({
+    where: { engagementId, nodeKey: { in: Array.from(allKeys) } },
+    select: { id: true, nodeKey: true },
+  });
+  const keyToId = new Map(dbNodes.map((n) => [n.nodeKey, n.id]));
 
-  // Create flag records
-  for (const flag of newFlags) {
-    const flaggedNode = await prisma.node.findFirst({
-      where: { engagementId, nodeKey: flag.flaggedNodeKey },
-    });
-    const sourceNode = await prisma.node.findFirst({
-      where: { engagementId, nodeKey: flag.sourceNodeKey },
-    });
+  const flaggedNodeKeys: string[] = [];
+  const cascadingNodeKeys: string[] = [];
 
-    if (flaggedNode && sourceNode) {
-      await prisma.cascadeFlag.create({
-        data: {
-          flaggedNodeId: flaggedNode.id,
-          sourceNodeId: sourceNode.id,
-          flagType: flag.flagType === "needs_review" ? "needs_review" : "cascading",
-          resolved: false,
-        },
-      });
-    }
-  }
+  await prisma.$transaction([
+    ...updatedNodes
+      .map((node) => {
+        const id = keyToId.get(node.nodeKey);
+        if (!id) return null;
+        if (node.status === "flagged") flaggedNodeKeys.push(node.nodeKey);
+        if (node.status === "cascading") cascadingNodeKeys.push(node.nodeKey);
+        return prisma.node.update({
+          where: { id },
+          data: { status: node.status as NodeStatus },
+        });
+      })
+      .filter((p): p is NonNullable<typeof p> => p !== null),
+    ...unlockedNodeKeys
+      .map((nodeKey) => {
+        const id = keyToId.get(nodeKey);
+        if (!id) return null;
+        return prisma.node.update({
+          where: { id },
+          data: { lockedIn: false, lockedInAt: null, lockedInBy: null },
+        });
+      })
+      .filter((p): p is NonNullable<typeof p> => p !== null),
+    ...newFlags
+      .map((flag) => {
+        const flaggedId = keyToId.get(flag.flaggedNodeKey);
+        const sourceId = keyToId.get(flag.sourceNodeKey);
+        if (!flaggedId || !sourceId) return null;
+        return prisma.cascadeFlag.create({
+          data: {
+            flaggedNodeId: flaggedId,
+            sourceNodeId: sourceId,
+            flagType: flag.flagType === "needs_review" ? "needs_review" : "cascading",
+            resolved: false,
+          },
+        });
+      })
+      .filter((p): p is NonNullable<typeof p> => p !== null),
+  ]);
 
-  return newFlags.length;
+  return {
+    flagCount: newFlags.length,
+    flaggedNodeKeys,
+    cascadingNodeKeys,
+    unlockedNodeKeys,
+  };
 }
 
 /**

@@ -6,6 +6,7 @@ import Image from "next/image";
 import Link from "next/link";
 import type { CascadeNode, CascadeFlag, NodeTemplateSection, NodeSectionData } from "@/data/engagement";
 import SectionHtml from "@/components/SectionHtml";
+import RichTextEditor from "@/components/RichTextEditor";
 
 interface ParsedSectionResult {
   sectionKey: string;
@@ -43,6 +44,30 @@ export default function NodeAdminPage() {
   const [triggerCascade, setTriggerCascade] = useState(false);
   const [disabledConditionals, setDisabledConditionals] = useState<Set<string>>(new Set());
   const [uploadedFilename, setUploadedFilename] = useState("");
+  const [storedFilename, setStoredFilename] = useState<string | null>(null);
+
+  // Lock In / Unlock state
+  const [lockDialog, setLockDialog] = useState<"none" | "lock" | "unlock">("none");
+  const [lockBusy, setLockBusy] = useState(false);
+
+  // .docx sync state
+  const [currentVersion, setCurrentVersion] = useState<{
+    docxOutOfSync: boolean;
+    docxRegeneratedAt: string | null;
+  } | null>(null);
+  const [regenBusy, setRegenBusy] = useState(false);
+
+  // Conflict-on-reupload state
+  const [conflictFile, setConflictFile] = useState<File | null>(null);
+
+  // Cascade-result banner state
+  const [cascadeSummary, setCascadeSummary] = useState<null | {
+    unlockedNodeKeys: string[];
+    flaggedNodeKeys: string[];
+    cascadingNodeKeys: string[];
+  }>(null);
+  const [cascadeBannerDismissed, setCascadeBannerDismissed] = useState(false);
+  const [allNodes, setAllNodes] = useState<CascadeNode[]>([]);
 
   // Legacy fallback state (for nodes without templates)
   const [legacySummary, setLegacySummary] = useState("");
@@ -54,10 +79,13 @@ export default function NodeAdminPage() {
       fetch(`/api/templates/${nodeKey}`).then((r) =>
         r.ok ? r.json() : { sections: [] }
       ),
+      fetch(`/api/engagement`).then((r) => (r.ok ? r.json() : { nodes: [] })),
     ])
-      .then(([detailsData, templateData]) => {
+      .then(([detailsData, templateData, engagementData]) => {
+        setAllNodes(engagementData.nodes || []);
         setNode(detailsData.node);
         setFlag(detailsData.flag || null);
+        setCurrentVersion(detailsData.currentVersion ?? null);
 
         if (templateData.sections?.length) {
           setTemplateSections(templateData.sections);
@@ -102,9 +130,16 @@ export default function NodeAdminPage() {
     });
   }
 
-  async function handleUpload(file: File) {
+  async function handleUpload(file: File, force = false) {
     setError("");
     setUploadedFilename(file.name);
+
+    // Conflict guard: if portal edits are pending and the admin is uploading
+    // a fresh .docx, show the confirm dialog before overwriting.
+    if (!force && currentVersion?.docxOutOfSync) {
+      setConflictFile(file);
+      return;
+    }
 
     if (useLegacy) {
       // Legacy flow — just extract text
@@ -114,7 +149,8 @@ export default function NodeAdminPage() {
         formData.append("file", file);
         const res = await fetch("/api/upload", { method: "POST", body: formData });
         if (!res.ok) throw new Error((await res.json()).error || "Upload failed");
-        const { text } = await res.json();
+        const { text, storedFilename: stored } = await res.json();
+        if (stored) setStoredFilename(stored);
         setLegacySummary(text.slice(0, 2000));
         setStep("editing");
       } catch (err) {
@@ -133,6 +169,8 @@ export default function NodeAdminPage() {
       uploadForm.append("file", file);
       const uploadRes = await fetch("/api/upload", { method: "POST", body: uploadForm });
       if (!uploadRes.ok) throw new Error((await uploadRes.json()).error || "Upload failed");
+      const uploadData = await uploadRes.json();
+      if (uploadData.storedFilename) setStoredFilename(uploadData.storedFilename);
 
       // Then parse it against templates
       const parseForm = new FormData();
@@ -208,6 +246,10 @@ export default function NodeAdminPage() {
         triggerCascade: isRevision && triggerCascade,
       };
 
+      if (storedFilename) {
+        body.documentUrl = storedFilename;
+      }
+
       if (useLegacy) {
         body.execSummary = legacySummary;
       } else {
@@ -233,10 +275,89 @@ export default function NodeAdminPage() {
         throw new Error(err.error || "Publish failed");
       }
 
+      const data = await res.json();
+      if (data.cascade?.cascadeTriggered) {
+        const { flaggedNodeKeys = [], unlockedNodeKeys = [], cascadingNodeKeys = [] } = data.cascade;
+        if (flaggedNodeKeys.length > 0 || unlockedNodeKeys.length > 0) {
+          setCascadeSummary({ flaggedNodeKeys, unlockedNodeKeys, cascadingNodeKeys });
+          setCascadeBannerDismissed(false);
+        }
+      }
       setStep("done");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Publish failed");
       setStep("editing");
+    }
+  }
+
+  async function handleLockIn() {
+    setLockBusy(true);
+    setError("");
+    try {
+      const res = await fetch(`/api/nodes/${nodeKey}/lock-in`, { method: "POST" });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Lock in failed");
+      }
+      // Refetch node so badge updates
+      const fresh = await fetch(`/api/nodes/${nodeKey}/details`).then((r) => r.json());
+      setNode(fresh.node);
+      setLockDialog("none");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Lock in failed");
+    } finally {
+      setLockBusy(false);
+    }
+  }
+
+  async function handleUnlock() {
+    setLockBusy(true);
+    setError("");
+    try {
+      const res = await fetch(`/api/nodes/${nodeKey}/unlock`, { method: "POST" });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Unlock failed");
+      }
+      const fresh = await fetch(`/api/nodes/${nodeKey}/details`).then((r) => r.json());
+      setNode(fresh.node);
+      setLockDialog("none");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unlock failed");
+    } finally {
+      setLockBusy(false);
+    }
+  }
+
+  function nodeNameByKey(key: string): string {
+    return allNodes.find((n) => n.nodeKey === key)?.displayName || key;
+  }
+
+  async function handleRegenerateDocx() {
+    setRegenBusy(true);
+    setError("");
+    try {
+      const res = await fetch(`/api/nodes/${nodeKey}/regenerate-docx`, { method: "POST" });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "Failed to generate .docx");
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download =
+        res.headers.get("Content-Disposition")?.match(/filename="(.+)"/)?.[1] ||
+        `${nodeKey}_updated.docx`;
+      a.click();
+      URL.revokeObjectURL(url);
+      // Refetch to clear the banner
+      const fresh = await fetch(`/api/nodes/${nodeKey}/details`).then((r) => r.json());
+      setCurrentVersion(fresh.currentVersion ?? null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to generate .docx");
+    } finally {
+      setRegenBusy(false);
     }
   }
 
@@ -290,48 +411,134 @@ export default function NodeAdminPage() {
       </header>
 
       <main className="max-w-6xl mx-auto px-6 py-8">
-        {/* Node header */}
-        <div className="mb-6">
-          <div className="flex items-center gap-2 mb-2">
-            <h1 className="font-outfit font-bold text-otm-navy text-xl">
-              {node.displayName}
-            </h1>
-            {node.isGate && (
-              <span className="text-xs bg-red-50 text-red-700 px-2 py-0.5 rounded">
-                Strategic gate
-              </span>
-            )}
-            {node.isConditional && (
-              <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded">
-                Conditional
-              </span>
-            )}
-          </div>
-          <div className="flex items-center gap-3">
-            <span
-              className={`text-xs px-2 py-1 rounded-full font-medium ${
-                node.status === "complete"
-                  ? "bg-otm-teal/10 text-otm-teal"
-                  : node.status === "active"
-                  ? "bg-blue-50 text-blue-600"
-                  : node.status === "flagged"
-                  ? "bg-amber-50 text-amber-700"
-                  : node.status === "cascading"
-                  ? "bg-amber-50 text-amber-600"
-                  : "bg-gray-100 text-gray-400"
-              }`}
+        {/* .docx out-of-sync banner */}
+        {currentVersion?.docxOutOfSync && (
+          <div className="bg-amber-50 border-l-4 border-amber-400 p-4 mb-6 flex items-start gap-3">
+            <span className="text-amber-600 text-lg leading-none mt-0.5">⚠</span>
+            <div className="flex-1">
+              <p className="font-semibold text-amber-900 text-sm">
+                Portal edits made since last .docx export
+              </p>
+              <p className="text-xs text-amber-800 mt-1">
+                Download the updated .docx to keep the source document aligned.
+              </p>
+            </div>
+            <button
+              onClick={handleRegenerateDocx}
+              disabled={regenBusy}
+              className="text-xs font-semibold px-3 py-2 rounded-md text-white bg-amber-600 hover:bg-amber-700 disabled:opacity-50"
             >
-              {node.status}
-            </span>
-            {!useLegacy && templateSections.length > 0 && step === "editing" && (
-              <span className="text-xs text-gray-400">
-                {filledCount} of {activeSections.length} sections filled
-                {requiredChapterCount > 0 && (
-                  <> &middot; {filledRequiredChapterCount}/{requiredChapterCount} required chapters</>
-                )}
-              </span>
-            )}
+              {regenBusy ? "Generating…" : "Download Updated .docx"}
+            </button>
           </div>
+        )}
+
+        {/* Cascade-result banner */}
+        {cascadeSummary && !cascadeBannerDismissed && (
+          <div className="bg-amber-50 border-l-4 border-amber-400 rounded p-4 mb-6">
+            <div className="flex items-start gap-3">
+              <span className="text-amber-600 text-lg leading-none">⚠</span>
+              <div className="flex-1">
+                <p className="text-amber-900 font-semibold text-sm mb-1">
+                  Cascade triggered: {cascadeSummary.unlockedNodeKeys.length + cascadeSummary.flaggedNodeKeys.length} downstream
+                  node{cascadeSummary.unlockedNodeKeys.length + cascadeSummary.flaggedNodeKeys.length === 1 ? "" : "s"} were unlocked or flagged for re-review.
+                </p>
+                {cascadeSummary.unlockedNodeKeys.length > 0 && (
+                  <p className="text-xs text-amber-800 mt-1">
+                    <span className="font-medium">Unlocked:</span>{" "}
+                    {cascadeSummary.unlockedNodeKeys.map(nodeNameByKey).join(", ")}
+                  </p>
+                )}
+                {cascadeSummary.flaggedNodeKeys.length > 0 && (
+                  <p className="text-xs text-amber-800 mt-1">
+                    <span className="font-medium">Flagged:</span>{" "}
+                    {cascadeSummary.flaggedNodeKeys.map(nodeNameByKey).join(", ")}
+                  </p>
+                )}
+              </div>
+              <button
+                onClick={() => setCascadeBannerDismissed(true)}
+                className="text-xs text-amber-700 hover:text-amber-900 underline"
+              >
+                Dismiss
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Node header */}
+        <div className="mb-6 flex items-start justify-between gap-4">
+          <div className="flex-1">
+            <div className="flex items-center gap-2 mb-2">
+              <h1 className="font-outfit font-bold text-otm-navy text-xl">
+                {node.displayName}
+              </h1>
+              {node.isGate && (
+                <span className="text-xs bg-red-50 text-red-700 px-2 py-0.5 rounded">
+                  Strategic gate
+                </span>
+              )}
+              {node.isConditional && (
+                <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded">
+                  Conditional
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-3">
+              <span
+                className={`text-xs px-2 py-1 rounded-full font-medium ${
+                  node.status === "complete"
+                    ? "bg-otm-teal/10 text-otm-teal"
+                    : node.status === "active"
+                    ? "bg-blue-50 text-blue-600"
+                    : node.status === "flagged"
+                    ? "bg-amber-50 text-amber-700"
+                    : node.status === "cascading"
+                    ? "bg-amber-50 text-amber-600"
+                    : "bg-gray-100 text-gray-400"
+                }`}
+              >
+                {node.status}
+              </span>
+              {!useLegacy && templateSections.length > 0 && step === "editing" && (
+                <span className="text-xs text-gray-400">
+                  {filledCount} of {activeSections.length} sections filled
+                  {requiredChapterCount > 0 && (
+                    <> &middot; {filledRequiredChapterCount}/{requiredChapterCount} required chapters</>
+                  )}
+                </span>
+              )}
+            </div>
+          </div>
+          {/* Lock In / Unlock controls */}
+          {node.status === "complete" && (
+            <div className="flex items-center gap-2 shrink-0">
+              {node.lockedIn ? (
+                <>
+                  <span
+                    className="font-outfit font-bold uppercase text-[11px] tracking-[0.05em] inline-flex items-center gap-1 px-3 py-1.5 rounded-full"
+                    style={{ backgroundColor: "#0d354f", color: "#ffffff" }}
+                  >
+                    <span aria-hidden>✓</span> Locked In
+                  </span>
+                  <button
+                    onClick={() => setLockDialog("unlock")}
+                    className="text-xs px-3 py-1.5 border border-gray-300 rounded-md text-otm-gray hover:bg-gray-50"
+                  >
+                    Unlock
+                  </button>
+                </>
+              ) : (
+                <button
+                  onClick={() => setLockDialog("lock")}
+                  className="text-xs font-semibold px-4 py-2 rounded-md text-white"
+                  style={{ backgroundColor: "#0d354f" }}
+                >
+                  Lock In
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Flag warning */}
@@ -634,6 +841,113 @@ export default function NodeAdminPage() {
           </div>
         )}
       </main>
+
+      {/* Lock In confirmation dialog */}
+      {lockDialog === "lock" && (
+        <ConfirmDialog
+          title="Lock in this node?"
+          body={
+            <>
+              This signals that <strong>{node ? "the client" : ""}</strong> has approved{" "}
+              <strong>{node?.displayName}</strong>. Downstream nodes will read this as a
+              confirmed dependency. Continue?
+            </>
+          }
+          cancelLabel="Cancel"
+          confirmLabel="Lock In"
+          confirmStyle={{ backgroundColor: "#0d354f", color: "#ffffff" }}
+          onCancel={() => setLockDialog("none")}
+          onConfirm={handleLockIn}
+          busy={lockBusy}
+        />
+      )}
+      {lockDialog === "unlock" && (
+        <ConfirmDialog
+          title="Unlock this node?"
+          body={
+            <>
+              Unlocking will revert the status to &quot;Awaiting Approval&quot; on the client
+              portal. Downstream nodes are not affected by manual unlocks.
+            </>
+          }
+          cancelLabel="Cancel"
+          confirmLabel="Unlock"
+          confirmStyle={{ backgroundColor: "#ffffff", color: "#c84a3c", border: "1px solid #c84a3c" }}
+          onCancel={() => setLockDialog("none")}
+          onConfirm={handleUnlock}
+          busy={lockBusy}
+        />
+      )}
+
+      {/* Conflict-on-reupload dialog */}
+      {conflictFile && (
+        <ConfirmDialog
+          title="Overwrite portal edits?"
+          body={
+            <>
+              Portal edits have been made since the last .docx download. Uploading
+              this new file will overwrite those edits. To preserve them, cancel
+              and download the updated .docx first.
+            </>
+          }
+          cancelLabel="Cancel"
+          confirmLabel="Overwrite Portal Edits"
+          confirmStyle={{ backgroundColor: "#c84a3c", color: "#ffffff" }}
+          onCancel={() => setConflictFile(null)}
+          onConfirm={() => {
+            const f = conflictFile;
+            setConflictFile(null);
+            if (f) handleUpload(f, true);
+          }}
+          busy={false}
+        />
+      )}
+    </div>
+  );
+}
+
+function ConfirmDialog({
+  title,
+  body,
+  cancelLabel,
+  confirmLabel,
+  confirmStyle,
+  onCancel,
+  onConfirm,
+  busy,
+}: {
+  title: string;
+  body: React.ReactNode;
+  cancelLabel: string;
+  confirmLabel: string;
+  confirmStyle?: React.CSSProperties;
+  onCancel: () => void;
+  onConfirm: () => void;
+  busy: boolean;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+        <h3 className="font-outfit font-bold text-otm-navy text-lg mb-2">{title}</h3>
+        <p className="text-sm text-otm-gray mb-6">{body}</p>
+        <div className="flex justify-end gap-2">
+          <button
+            onClick={onCancel}
+            disabled={busy}
+            className="text-sm px-4 py-2 border border-gray-300 rounded-md text-otm-gray hover:bg-gray-50 disabled:opacity-50"
+          >
+            {cancelLabel}
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={busy}
+            className="text-sm font-semibold px-4 py-2 rounded-md disabled:opacity-50"
+            style={confirmStyle}
+          >
+            {busy ? "..." : confirmLabel}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -650,7 +964,6 @@ function SectionEditor({
   const [editing, setEditing] = useState(false);
   const isChapter = template.displayLayer === "CHAPTER";
   const hasContent = content.trim().length > 0;
-  const looksLikeHtml = content.includes("<") && content.includes(">");
 
   return (
     <div
@@ -697,15 +1010,10 @@ function SectionEditor({
 
       {editing ? (
         <div className="ml-7">
-          <textarea
-            value={content}
-            onChange={(e) => onChange(e.target.value)}
-            rows={isChapter ? 6 : 4}
-            placeholder={looksLikeHtml
-              ? "Edit HTML content..."
-              : `Enter ${template.sectionTitle.toLowerCase()} content (HTML supported)...`
-            }
-            className="w-full border border-gray-200 rounded-lg p-3 text-sm text-otm-gray leading-relaxed resize-y focus:outline-none focus:border-otm-teal font-mono text-xs"
+          <RichTextEditor
+            initialHtml={content}
+            onChange={onChange}
+            placeholder={`Enter ${template.sectionTitle.toLowerCase()} content...`}
           />
         </div>
       ) : hasContent ? (

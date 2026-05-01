@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getEngagementFresh, getFlagForNode, getNodeSections } from "@/lib/data-store";
+import { prisma } from "@/lib/prisma";
 import { getUserEngagementId } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
@@ -24,5 +25,28 @@ export async function GET(
   const flag = await getFlagForNode(nodeKey, engagementId);
   const sections = await getNodeSections(nodeKey, engagementId);
 
-  return NextResponse.json({ node, flag: flag || null, sections });
+  // Surface the current version's docx-sync metadata for the admin editor.
+  const dbNode = await prisma.node.findFirst({
+    where: { nodeKey, engagementId },
+    include: {
+      versions: { where: { isCurrent: true }, take: 1 },
+    },
+  });
+  const currentVersion = dbNode?.versions[0];
+  const versionMeta = currentVersion
+    ? {
+        id: currentVersion.id,
+        versionNumber: currentVersion.versionNumber,
+        documentUrl: currentVersion.documentUrl,
+        docxOutOfSync: currentVersion.docxOutOfSync,
+        docxRegeneratedAt: currentVersion.docxRegeneratedAt?.toISOString() ?? null,
+      }
+    : null;
+
+  return NextResponse.json({
+    node,
+    flag: flag || null,
+    sections,
+    currentVersion: versionMeta,
+  });
 }

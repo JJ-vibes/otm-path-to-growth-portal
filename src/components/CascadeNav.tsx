@@ -74,9 +74,10 @@ export default function CascadeNav({
   onSelect: (key: string) => void;
   clientName: string;
 }) {
-  const completed = nodes.filter((n) => n.status === "complete").length;
-  const total = nodes.length;
-  const pct = Math.round((completed / total) * 100);
+  const visibleNodes = nodes.filter((n) => !n.excluded);
+  const completed = visibleNodes.filter((n) => n.status === "complete").length;
+  const total = visibleNodes.length;
+  const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
 
   return (
     <nav className="w-[240px] shrink-0 bg-white border-r border-gray-200 flex flex-col h-full">
@@ -107,7 +108,7 @@ export default function CascadeNav({
         <div className="absolute left-[25px] top-0 bottom-0 w-[1.5px] bg-gray-200 z-0" />
 
         <div className="relative z-10 space-y-0">
-          {nodes.map((node) => {
+          {visibleNodes.map((node) => {
             const isSelected = node.nodeKey === selectedKey;
             const isClickable = node.status !== "locked" && node.status !== "cascading";
 

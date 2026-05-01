@@ -31,24 +31,31 @@ enum DisplayLayer {
 }
 
 model User {
-  id           String           @id @default(cuid())
-  email        String           @unique
-  name         String?
-  passwordHash String
-  role         Role             @default(CLIENT)
-  createdAt    DateTime         @default(now())
-  updatedAt    DateTime         @updatedAt
-  engagements  EngagementUser[]
+  id            String           @id @default(cuid())
+  email         String           @unique
+  name          String?
+  passwordHash  String
+  role          Role             @default(CLIENT)
+  active        Boolean          @default(true)
+  deactivatedAt DateTime?
+  lastLoginAt   DateTime?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+  engagements   EngagementUser[]
 }
 
 model Engagement {
-  id             String           @id @default(cuid())
+  id             String                 @id @default(cuid())
   clientName     String
-  lifecycleStage String           @default("Traction")
-  createdAt      DateTime         @default(now())
-  updatedAt      DateTime         @updatedAt
+  lifecycleStage String                 @default("Traction")
+  clientLogoUrl  String?
+  internalNotes  String?                @db.Text
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
   nodes          Node[]
   users          EngagementUser[]
+  nodeConfigs    EngagementNodeConfig[]
+  assets         EngagementAsset[]
 }
 
 model EngagementUser {
@@ -70,6 +77,9 @@ model Node {
   isGate        Boolean          @default(false)
   isConditional Boolean          @default(false)
   status        NodeStatus       @default(locked)
+  lockedIn      Boolean          @default(false)
+  lockedInAt    DateTime?
+  lockedInBy    String?
   engagement    Engagement       @relation(fields: [engagementId], references: [id], onDelete: Cascade)
 
   // Dependencies: this node depends on...
@@ -80,6 +90,7 @@ model Node {
   versions      NodeVersion[]
   flagsReceived CascadeFlag[]    @relation("flaggedNode")
   flagsCaused   CascadeFlag[]    @relation("sourceNode")
+  configs       EngagementNodeConfig[]
 
   @@unique([engagementId, nodeKey])
 }
@@ -95,18 +106,20 @@ model NodeDependency {
 }
 
 model NodeVersion {
-  id                String   @id @default(cuid())
+  id                String        @id @default(cuid())
   nodeId            String
-  versionNumber     Int      @default(1)
-  execSummary       String?  @db.Text
+  versionNumber     Int           @default(1)
+  execSummary       String?       @db.Text
   documentUrl       String?
   changeType        String?
   changeNote        String?
-  isCurrent         Boolean  @default(true)
-  isBaseline        Boolean  @default(false)
-  cascadeTriggering Boolean  @default(false)
-  createdAt         DateTime @default(now())
-  node              Node     @relation(fields: [nodeId], references: [id], onDelete: Cascade)
+  isCurrent         Boolean       @default(true)
+  isBaseline        Boolean       @default(false)
+  cascadeTriggering Boolean       @default(false)
+  docxOutOfSync     Boolean       @default(false)
+  docxRegeneratedAt DateTime?
+  createdAt         DateTime      @default(now())
+  node              Node          @relation(fields: [nodeId], references: [id], onDelete: Cascade)
   sections          NodeSection[]
 }
 
@@ -151,4 +164,30 @@ model CascadeFlag {
   resolvedAt      DateTime?
   flaggedNode     Node     @relation("flaggedNode", fields: [flaggedNodeId], references: [id], onDelete: Cascade)
   sourceNode      Node     @relation("sourceNode", fields: [sourceNodeId], references: [id], onDelete: Cascade)
+}
+
+model EngagementNodeConfig {
+  id             String     @id @default(cuid())
+  engagementId   String
+  nodeId         String
+  excluded       Boolean    @default(false)
+  sectionToggles Json?
+  engagement     Engagement @relation(fields: [engagementId], references: [id], onDelete: Cascade)
+  node           Node       @relation(fields: [nodeId], references: [id], onDelete: Cascade)
+
+  @@unique([engagementId, nodeId])
+}
+
+model EngagementAsset {
+  id           String     @id @default(cuid())
+  engagementId String
+  filename     String
+  url          String
+  mimeType     String
+  sizeBytes    Int
+  uploadedAt   DateTime   @default(now())
+  uploadedBy   String
+  engagement   Engagement @relation(fields: [engagementId], references: [id], onDelete: Cascade)
+
+  @@index([engagementId])
 }

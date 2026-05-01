@@ -38,7 +38,11 @@ export interface CascadeNode {
   status: NodeStatus;
   dependsOn: string[];
   execSummary?: string;
+  documentUrl?: string | null;
   sections?: NodeSectionData[];
+  lockedIn: boolean;
+  lockedInAt?: string | null;
+  excluded?: boolean;
   upstreamNames: string[];
   downstreamNames: string[];
 }
@@ -46,6 +50,7 @@ export interface CascadeNode {
 export interface Engagement {
   clientName: string;
   lifecycleStage: string;
+  clientLogoUrl?: string | null;
   nodes: CascadeNode[];
   flags: CascadeFlag[];
 }

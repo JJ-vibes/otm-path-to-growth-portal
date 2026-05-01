@@ -245,6 +245,7 @@ async function main() {
         isGate: config.isGate,
         isConditional: config.isConditional,
         status: config.status,
+        lockedIn: false,
       },
     });
     nodeMap.set(config.nodeKey, node.id);

@@ -21,12 +21,21 @@ export const authOptions: NextAuthOptions = {
 
           if (!user) return null;
 
+          if (!user.active) {
+            throw new Error("Account deactivated. Contact your OTM administrator.");
+          }
+
           const isValid = await bcrypt.compare(
             credentials.password,
             user.passwordHash
           );
 
           if (!isValid) return null;
+
+          // Update last login timestamp (best-effort, non-blocking).
+          prisma.user
+            .update({ where: { id: user.id }, data: { lastLoginAt: new Date() } })
+            .catch((err) => console.warn("[AUTH] lastLoginAt update failed:", err));
 
           return {
             id: user.id,

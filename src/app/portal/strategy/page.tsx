@@ -6,6 +6,7 @@ import TopBar from "@/components/TopBar";
 import CascadeNav from "@/components/CascadeNav";
 import CascadeBanner from "@/components/CascadeBanner";
 import NodeContent from "@/components/NodeContent";
+import NodeProgressionStrip from "@/components/NodeProgressionStrip";
 import DevToggle from "@/components/DevToggle";
 
 export default function StrategyPage() {
@@ -53,7 +54,7 @@ export default function StrategyPage() {
 
   return (
     <div className="h-screen flex flex-col bg-otm-light">
-      <TopBar clientName={engagement.clientName} />
+      <TopBar clientName={engagement.clientName} clientLogoUrl={engagement.clientLogoUrl} />
       <CascadeBanner nodes={nodes} flags={flags} />
 
       {/* Mobile nav toggle */}
@@ -82,8 +83,17 @@ export default function StrategyPage() {
             clientName={engagement.clientName}
           />
         </div>
-        <main className="flex-1 overflow-y-auto p-4 md:p-8 max-w-3xl">
-          <NodeContent node={selectedNode} allNodes={nodes} flags={flags} />
+        <main className="flex-1 overflow-y-auto p-4 md:p-8">
+          <div className="mb-6">
+            <NodeProgressionStrip
+              nodes={nodes}
+              selectedKey={selectedKey}
+              onSelect={handleNodeSelect}
+            />
+          </div>
+          <div className="max-w-3xl">
+            <NodeContent node={selectedNode} allNodes={nodes} flags={flags} />
+          </div>
         </main>
       </div>
       <DevToggle nodes={nodes} onStatusChange={handleStatusChange} />
