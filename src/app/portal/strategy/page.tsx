@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { Suspense, useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { CascadeNode, CascadeFlag, NodeStatus, Engagement } from "@/data/engagement";
 import TopBar from "@/components/TopBar";
@@ -10,7 +10,23 @@ import NodeContent from "@/components/NodeContent";
 import NodeProgressionStrip from "@/components/NodeProgressionStrip";
 import DevToggle from "@/components/DevToggle";
 
+// Page-level Suspense boundary required by Next.js when useSearchParams is
+// used in the client tree, otherwise the prerender step bails out.
 export default function StrategyPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="h-screen flex items-center justify-center bg-otm-light">
+          <p className="text-gray-400 text-sm">Loading...</p>
+        </div>
+      }
+    >
+      <StrategyPageContent />
+    </Suspense>
+  );
+}
+
+function StrategyPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const urlNodeKey = searchParams.get("node");
