@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { CascadeNode, CascadeFlag, NodeStatus, Engagement } from "@/data/engagement";
 import TopBar from "@/components/TopBar";
 import CascadeNav from "@/components/CascadeNav";
@@ -10,10 +11,13 @@ import NodeProgressionStrip from "@/components/NodeProgressionStrip";
 import DevToggle from "@/components/DevToggle";
 
 export default function StrategyPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const urlNodeKey = searchParams.get("node");
+
   const [engagement, setEngagement] = useState<Engagement | null>(null);
   const [nodes, setNodes] = useState<CascadeNode[]>([]);
   const [flags, setFlags] = useState<CascadeFlag[]>([]);
-  const [selectedKey, setSelectedKey] = useState<string>("");
   const [navOpen, setNavOpen] = useState(false);
 
   useEffect(() => {
@@ -23,12 +27,18 @@ export default function StrategyPage() {
         setEngagement(data);
         setNodes(data.nodes);
         setFlags(data.flags || []);
-        const defaultKey =
-          data.nodes.find((n) => n.status === "active")?.nodeKey ||
-          data.nodes.find((n) => n.status !== "locked")?.nodeKey ||
-          data.nodes[0].nodeKey;
-        setSelectedKey(defaultKey);
+
+        // If the URL doesn't already specify a node, set a sensible default
+        // and replace (don't push) so it doesn't add a useless history entry.
+        if (!urlNodeKey || !data.nodes.some((n) => n.nodeKey === urlNodeKey)) {
+          const defaultKey =
+            data.nodes.find((n) => n.status === "active")?.nodeKey ||
+            data.nodes.find((n) => n.status !== "locked")?.nodeKey ||
+            data.nodes[0].nodeKey;
+          router.replace(`/portal/strategy?node=${defaultKey}`);
+        }
       });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   if (!engagement || nodes.length === 0) {
@@ -39,6 +49,9 @@ export default function StrategyPage() {
     );
   }
 
+  const selectedKey =
+    (urlNodeKey && nodes.find((n) => n.nodeKey === urlNodeKey)?.nodeKey) ||
+    nodes[0].nodeKey;
   const selectedNode = nodes.find((n) => n.nodeKey === selectedKey) || nodes[0];
 
   function handleStatusChange(nodeKey: string, status: NodeStatus) {
@@ -48,7 +61,9 @@ export default function StrategyPage() {
   }
 
   function handleNodeSelect(key: string) {
-    setSelectedKey(key);
+    // Push a new history entry so browser back returns to the previous node,
+    // not all the way to /portal.
+    router.push(`/portal/strategy?node=${key}`);
     setNavOpen(false);
   }
 
