@@ -9,8 +9,10 @@ type Crumb = { label: string; href?: string };
 
 export default function AdminTopBar({
   crumbs = [],
+  engagementId,
 }: {
   crumbs?: Crumb[];
+  engagementId?: string;
 }) {
   const pathname = usePathname();
   const onEngagementsList = pathname === "/admin";
@@ -66,7 +68,7 @@ export default function AdminTopBar({
             + New
           </Link>
           <Link
-            href="/portal"
+            href={engagementId ? `/portal?engagement=${engagementId}` : "/portal"}
             className="text-xs text-otm-teal hover:underline px-2 py-1"
           >
             View as client →

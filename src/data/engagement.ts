@@ -48,6 +48,7 @@ export interface CascadeNode {
 }
 
 export interface Engagement {
+  id?: string;
   clientName: string;
   lifecycleStage: string;
   nodes: CascadeNode[];

@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import type { CascadeNode, CascadeFlag, NodeTemplateSection, NodeSectionData } from "@/data/engagement";
 import SectionHtml from "@/components/SectionHtml";
 import RichTextEditor from "@/components/RichTextEditor";
@@ -26,10 +26,28 @@ type Step =
   | "publishing"
   | "done";
 
+// Page-level Suspense boundary required by Next.js when useSearchParams is
+// used in the client tree, otherwise the prerender step bails out.
 export default function NodeAdminPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center bg-otm-light">
+          <p className="text-gray-400 text-sm">Loading...</p>
+        </div>
+      }
+    >
+      <NodeAdminPageContent />
+    </Suspense>
+  );
+}
+
+function NodeAdminPageContent() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const nodeKey = params.nodeKey as string;
+  const engagementId = searchParams.get("engagement") ?? undefined;
 
   const [node, setNode] = useState<CascadeNode | null>(null);
   const [flag, setFlag] = useState<CascadeFlag | null>(null);
@@ -78,7 +96,11 @@ export default function NodeAdminPage() {
       fetch(`/api/templates/${nodeKey}`).then((r) =>
         r.ok ? r.json() : { sections: [] }
       ),
-      fetch(`/api/engagement`).then((r) => (r.ok ? r.json() : { nodes: [] })),
+      fetch(
+        engagementId
+          ? `/api/engagement?engagement=${encodeURIComponent(engagementId)}`
+          : `/api/engagement`
+      ).then((r) => (r.ok ? r.json() : { nodes: [] })),
     ])
       .then(([detailsData, templateData, engagementData]) => {
         setAllNodes(engagementData.nodes || []);
@@ -394,7 +416,7 @@ export default function NodeAdminPage() {
 
   return (
     <div className="min-h-screen bg-otm-light">
-      <AdminTopBar crumbs={[{ label: node.displayName }]} />
+      <AdminTopBar crumbs={[{ label: node.displayName }]} engagementId={engagementId} />
 
       <main className="max-w-6xl mx-auto px-6 py-8">
         {/* .docx out-of-sync banner */}

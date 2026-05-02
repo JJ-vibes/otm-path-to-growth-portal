@@ -8,11 +8,16 @@ import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
-export default async function PortalHomePage() {
+export default async function PortalHomePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ engagement?: string }>;
+}) {
   const user = await getSessionUser();
   if (!user) redirect("/login");
 
-  const engagementId = await getUserEngagementId();
+  const sp = await searchParams;
+  const engagementId = await getUserEngagementId(sp.engagement);
   if (!engagementId) redirect("/login");
 
   const engagement = await getEngagementFresh(engagementId);
@@ -20,6 +25,11 @@ export default async function PortalHomePage() {
   const completed = visibleNodes.filter((n) => n.status === "complete").length;
   const total = visibleNodes.length;
   const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
+
+  const strategyHref =
+    user.role === "ADMIN"
+      ? `/portal/strategy?engagement=${engagementId}`
+      : "/portal/strategy";
 
   return (
     <div className="min-h-screen bg-otm-light">
@@ -35,6 +45,7 @@ export default async function PortalHomePage() {
             completed={completed}
             total={total}
             pct={pct}
+            href={strategyHref}
           />
           <LockedStageCard
             label="Stage 2"
@@ -62,6 +73,7 @@ function ActiveStageCard({
   completed,
   total,
   pct,
+  href,
 }: {
   label: string;
   title: string;
@@ -69,10 +81,11 @@ function ActiveStageCard({
   completed: number;
   total: number;
   pct: number;
+  href: string;
 }) {
   return (
     <Link
-      href="/portal/strategy"
+      href={href}
       className="group relative bg-white rounded-xl border border-gray-200 border-l-4 p-6 transition-shadow hover:shadow-md flex flex-col"
       style={{ borderLeftColor: "#e0f5f6" }}
     >

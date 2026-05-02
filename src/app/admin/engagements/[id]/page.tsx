@@ -55,7 +55,7 @@ export default async function EngagementDetailPage({
 
   return (
     <div className="min-h-screen bg-otm-light">
-      <AdminTopBar crumbs={[{ label: engagement.clientName }]} />
+      <AdminTopBar crumbs={[{ label: engagement.clientName }]} engagementId={id} />
 
       <main className="max-w-5xl mx-auto px-6 py-8">
         <h1 className="font-outfit font-bold text-otm-navy text-xl mb-1">

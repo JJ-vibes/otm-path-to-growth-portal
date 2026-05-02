@@ -30,16 +30,28 @@ function StrategyPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const urlNodeKey = searchParams.get("node");
+  const urlEngagement = searchParams.get("engagement");
 
   const [engagement, setEngagement] = useState<Engagement | null>(null);
   const [nodes, setNodes] = useState<CascadeNode[]>([]);
   const [flags, setFlags] = useState<CascadeFlag[]>([]);
   const [navOpen, setNavOpen] = useState(false);
 
+  function buildHref(nodeKey: string) {
+    const params = new URLSearchParams();
+    params.set("node", nodeKey);
+    if (urlEngagement) params.set("engagement", urlEngagement);
+    return `/portal/strategy?${params.toString()}`;
+  }
+
   useEffect(() => {
-    fetch("/api/engagement")
+    const fetchUrl = urlEngagement
+      ? `/api/engagement?engagement=${encodeURIComponent(urlEngagement)}`
+      : "/api/engagement";
+    fetch(fetchUrl)
       .then((r) => r.json())
       .then((data: Engagement) => {
+        if (!data.nodes) return;
         setEngagement(data);
         setNodes(data.nodes);
         setFlags(data.flags || []);
@@ -50,8 +62,8 @@ function StrategyPageContent() {
           const defaultKey =
             data.nodes.find((n) => n.status === "active")?.nodeKey ||
             data.nodes.find((n) => n.status !== "locked")?.nodeKey ||
-            data.nodes[0].nodeKey;
-          router.replace(`/portal/strategy?node=${defaultKey}`);
+            data.nodes[0]?.nodeKey;
+          if (defaultKey) router.replace(buildHref(defaultKey));
         }
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -79,7 +91,7 @@ function StrategyPageContent() {
   function handleNodeSelect(key: string) {
     // Push a new history entry so browser back returns to the previous node,
     // not all the way to /portal.
-    router.push(`/portal/strategy?node=${key}`);
+    router.push(buildHref(key));
     setNavOpen(false);
   }
 

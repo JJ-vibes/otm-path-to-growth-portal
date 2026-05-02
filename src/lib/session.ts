@@ -18,8 +18,16 @@ export async function getUserEngagementId(requestedId?: string): Promise<string 
   if (!user) return null;
 
   if (user.role === "ADMIN") {
-    if (requestedId) return requestedId;
-    const engagement = await prisma.engagement.findFirst();
+    if (requestedId) {
+      const exists = await prisma.engagement.findUnique({
+        where: { id: requestedId },
+        select: { id: true },
+      });
+      if (exists) return exists.id;
+    }
+    const engagement = await prisma.engagement.findFirst({
+      orderBy: { updatedAt: "desc" },
+    });
     return engagement?.id ?? null;
   }
 
