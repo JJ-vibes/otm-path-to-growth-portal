@@ -23,7 +23,7 @@ export default async function PortalHomePage() {
 
   return (
     <div className="min-h-screen bg-otm-light">
-      <TopBar clientName={engagement.clientName} clientLogoUrl={engagement.clientLogoUrl} />
+      <TopBar clientName={engagement.clientName} />
       <main className="max-w-[1200px] mx-auto px-6 pt-8 pb-16">
         <GrowthLifecycle currentStage={engagement.lifecycleStage} />
 

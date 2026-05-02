@@ -111,7 +111,6 @@ export async function getEngagementFresh(engagementId?: string): Promise<Engagem
   return {
     clientName: engagement.clientName,
     lifecycleStage: engagement.lifecycleStage,
-    clientLogoUrl: engagement.clientLogoUrl ?? null,
     nodes,
     flags: cascadeFlags,
   };

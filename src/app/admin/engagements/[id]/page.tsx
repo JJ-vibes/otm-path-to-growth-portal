@@ -7,7 +7,6 @@ import AdminTopBar from "@/components/AdminTopBar";
 import OverviewTab from "./OverviewTab";
 import UsersTab from "./UsersTab";
 import SettingsTab from "./SettingsTab";
-import BrandingTab from "./BrandingTab";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +15,6 @@ const TABS = [
   { key: "nodes", label: "Nodes" },
   { key: "users", label: "Users" },
   { key: "settings", label: "Settings" },
-  { key: "branding", label: "Branding" },
 ] as const;
 
 type TabKey = (typeof TABS)[number]["key"];
@@ -49,7 +47,6 @@ export default async function EngagementDetailPage({
       id: true,
       clientName: true,
       lifecycleStage: true,
-      clientLogoUrl: true,
       internalNotes: true,
       createdAt: true,
     },
@@ -104,12 +101,6 @@ export default async function EngagementDetailPage({
         )}
         {tab === "users" && <UsersTab engagementId={id} />}
         {tab === "settings" && <SettingsTab engagementId={id} />}
-        {tab === "branding" && (
-          <BrandingTab
-            engagementId={id}
-            clientLogoUrl={engagementRow.clientLogoUrl}
-          />
-        )}
       </main>
     </div>
   );

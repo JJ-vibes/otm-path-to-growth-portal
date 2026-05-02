@@ -85,7 +85,7 @@ function StrategyPageContent() {
 
   return (
     <div className="h-screen flex flex-col bg-otm-light">
-      <TopBar clientName={engagement.clientName} clientLogoUrl={engagement.clientLogoUrl} />
+      <TopBar clientName={engagement.clientName} />
       <CascadeBanner nodes={nodes} flags={flags} />
 
       {/* Mobile nav toggle */}

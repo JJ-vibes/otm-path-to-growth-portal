@@ -50,7 +50,6 @@ export interface CascadeNode {
 export interface Engagement {
   clientName: string;
   lifecycleStage: string;
-  clientLogoUrl?: string | null;
   nodes: CascadeNode[];
   flags: CascadeFlag[];
 }
