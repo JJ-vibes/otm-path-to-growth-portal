@@ -23,10 +23,6 @@ const STAGE_INDEX: Record<StageKey, number> = {
   ACCELERATE_EXIT: 5,
 };
 
-// Bottom bar height as a percentage of the image height (1920×1080 source).
-// Tuned visually so the gold border hugs the colored rectangle.
-const BOTTOM_BAR_HEIGHT_PCT = 7.5;
-
 function normalizeStage(input: string): StageKey {
   const v = input.trim().toLowerCase().replace(/[\s+_-]+/g, "_");
   if (v.startsWith("formation")) return "FORMATION";
@@ -45,52 +41,49 @@ export default function GrowthLifecycle({
 }) {
   const stage = normalizeStage(currentStage);
   const idx = STAGE_INDEX[stage];
-  const segmentLeftPct = idx * SEGMENT_WIDTH_PCT;
-  const segmentCenterPct = segmentLeftPct + SEGMENT_WIDTH_PCT / 2;
+  const segmentCenterPct = idx * SEGMENT_WIDTH_PCT + SEGMENT_WIDTH_PCT / 2;
 
   return (
-    <div className="relative w-full max-w-[1200px] mx-auto aspect-[1920/1080]">
-      <Image
-        src="/images/growth-lifecycle.png"
-        alt="OTM Professional Services Firm Growth Lifecycle"
-        fill
-        priority
-        sizes="(max-width: 1200px) 100vw, 1200px"
-        className="object-contain"
-      />
+    <div className="w-full max-w-[1200px] mx-auto pb-10">
+      <div className="relative w-full aspect-[1920/1080]">
+        <Image
+          src="/images/growth-lifecycle.png"
+          alt="OTM Professional Services Firm Growth Lifecycle"
+          fill
+          priority
+          sizes="(max-width: 1200px) 100vw, 1200px"
+          className="object-contain"
+        />
 
-      {/* Gold border outlining the active stage's rectangle in the bottom bar */}
-      <div
-        className="absolute pointer-events-none"
-        style={{
-          left: `${segmentLeftPct}%`,
-          width: `${SEGMENT_WIDTH_PCT}%`,
-          bottom: 0,
-          height: `${BOTTOM_BAR_HEIGHT_PCT}%`,
-          border: "3px solid #e7a923",
-          boxSizing: "border-box",
-          borderRadius: 2,
-        }}
-      />
-
-      {/* "YOU ARE HERE" pill, centered above the highlighted bottom rectangle */}
-      <div
-        className="absolute pointer-events-none"
-        style={{
-          left: `${segmentCenterPct}%`,
-          bottom: `calc(${BOTTOM_BAR_HEIGHT_PCT}% + 10px)`,
-          transform: "translateX(-50%)",
-        }}
-      >
-        <span
-          className="font-outfit font-bold uppercase text-white text-[11px] tracking-[0.05em] px-[10px] py-1 rounded-full whitespace-nowrap"
+        {/* "YOU ARE HERE" pill below the active stage, with an arrow pointing up at the stage name */}
+        <div
+          className="absolute pointer-events-none flex flex-col items-center"
           style={{
-            backgroundColor: "#e7a923",
-            boxShadow: "0 2px 4px rgba(13,53,79,0.15)",
+            left: `${segmentCenterPct}%`,
+            top: "100%",
+            transform: "translateX(-50%)",
+            paddingTop: 4,
           }}
         >
-          You are here
-        </span>
+          <div
+            style={{
+              width: 0,
+              height: 0,
+              borderLeft: "5px solid transparent",
+              borderRight: "5px solid transparent",
+              borderBottom: "5px solid #e7a923",
+            }}
+          />
+          <span
+            className="font-outfit font-bold uppercase text-white text-[9px] tracking-[0.05em] px-2 py-0.5 rounded-full whitespace-nowrap"
+            style={{
+              backgroundColor: "#e7a923",
+              boxShadow: "0 2px 4px rgba(13,53,79,0.15)",
+            }}
+          >
+            You are here
+          </span>
+        </div>
       </div>
     </div>
   );
