@@ -98,10 +98,12 @@ function StrategyPageContent() {
   return (
     <div className="h-screen flex flex-col bg-otm-light">
       <TopBar clientName={engagement.clientName} />
-      <CascadeBanner nodes={nodes} flags={flags} />
+      <div className="print:hidden">
+        <CascadeBanner nodes={nodes} flags={flags} />
+      </div>
 
       {/* Mobile nav toggle */}
-      <div className="md:hidden px-4 py-2 bg-white border-b border-gray-200">
+      <div className="md:hidden px-4 py-2 bg-white border-b border-gray-200 print:hidden">
         <button
           onClick={() => setNavOpen(!navOpen)}
           className="flex items-center gap-2 text-sm text-otm-teal"
@@ -118,7 +120,7 @@ function StrategyPageContent() {
 
       <div className="flex flex-1 overflow-hidden relative">
         {/* Sidebar — hidden on mobile unless navOpen */}
-        <div className={`${navOpen ? "absolute inset-0 z-20 bg-white" : "hidden"} md:block`}>
+        <div className={`${navOpen ? "absolute inset-0 z-20 bg-white" : "hidden"} md:block print:hidden`}>
           <CascadeNav
             nodes={nodes}
             selectedKey={selectedKey}
@@ -127,7 +129,7 @@ function StrategyPageContent() {
           />
         </div>
         <main className="flex-1 overflow-y-auto p-4 md:p-8">
-          <div className="mb-6">
+          <div className="mb-6 print:hidden">
             <NodeProgressionStrip
               nodes={nodes}
               selectedKey={selectedKey}

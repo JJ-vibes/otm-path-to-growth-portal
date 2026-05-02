@@ -139,6 +139,9 @@ body {
 
 @media print {
   nav, header, .fixed, button { display: none !important; }
-  main { padding: 0 !important; max-width: 100% !important; }
-  .flex { display: block !important; }
+  main { padding: 0 !important; max-width: 100% !important; overflow: visible !important; }
+  /* Reset hidden overflow on the page shell so content isn't clipped to the
+     viewport height when printing. */
+  html, body, .h-screen { height: auto !important; overflow: visible !important; }
+  .overflow-hidden, .overflow-y-auto { overflow: visible !important; }
 }
