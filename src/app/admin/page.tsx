@@ -1,8 +1,8 @@
-import Image from "next/image";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getSessionUser } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
+import AdminTopBar from "@/components/AdminTopBar";
 
 export const dynamic = "force-dynamic";
 
@@ -20,30 +20,12 @@ export default async function AdminPage() {
 
   return (
     <div className="min-h-screen bg-otm-light">
-      <header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Image src="/otm-logo.png" alt="OTM" width={80} height={32} className="h-8 w-auto" />
-          <span className="font-outfit font-semibold text-otm-navy text-sm">
-            Admin
-          </span>
-          <Link href="/portal" className="text-xs text-otm-teal hover:underline">
-            &larr; View portal
-          </Link>
-        </div>
-      </header>
+      <AdminTopBar />
 
       <main className="max-w-4xl mx-auto px-6 py-8">
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="font-outfit font-bold text-otm-navy text-xl">
-            Engagements
-          </h1>
-          <Link
-            href="/admin/engagements/new"
-            className="bg-otm-teal text-white text-sm font-medium px-4 py-2 rounded hover:bg-otm-teal/90 transition-colors"
-          >
-            + New engagement
-          </Link>
-        </div>
+        <h1 className="font-outfit font-bold text-otm-navy text-xl mb-6">
+          Engagements
+        </h1>
 
         <div className="space-y-3">
           {engagements.map((eng) => {

@@ -1,9 +1,9 @@
-import Image from "next/image";
 import Link from "next/link";
 import { redirect, notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getEngagementFresh } from "@/lib/data-store";
 import { getSessionUser } from "@/lib/session";
+import AdminTopBar from "@/components/AdminTopBar";
 import OverviewTab from "./OverviewTab";
 import UsersTab from "./UsersTab";
 import SettingsTab from "./SettingsTab";
@@ -58,16 +58,7 @@ export default async function EngagementDetailPage({
 
   return (
     <div className="min-h-screen bg-otm-light">
-      <header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Image src="/otm-logo.png" alt="OTM" width={80} height={32} className="h-8 w-auto" />
-          <span className="font-outfit font-semibold text-otm-navy text-sm">Admin</span>
-          <Link href="/admin" className="text-xs text-otm-teal hover:underline">
-            &larr; All engagements
-          </Link>
-        </div>
-        <span className="text-sm text-otm-gray">{engagement.clientName}</span>
-      </header>
+      <AdminTopBar crumbs={[{ label: engagement.clientName }]} />
 
       <main className="max-w-5xl mx-auto px-6 py-8">
         <h1 className="font-outfit font-bold text-otm-navy text-xl mb-1">

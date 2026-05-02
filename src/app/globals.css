@@ -125,6 +125,18 @@ body {
   margin-bottom: 0;
 }
 
+/* TipTap placeholder — only shown on the first empty paragraph of an empty editor */
+.prose-otm .ProseMirror p.is-editor-empty:first-child::before {
+  color: #9ca3af;
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
+.prose-otm .ProseMirror:focus {
+  outline: none;
+}
+
 @media print {
   nav, header, .fixed, button { display: none !important; }
   main { padding: 0 !important; max-width: 100% !important; }

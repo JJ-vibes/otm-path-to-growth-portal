@@ -2,11 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import Image from "next/image";
-import Link from "next/link";
 import type { CascadeNode, CascadeFlag, NodeTemplateSection, NodeSectionData } from "@/data/engagement";
 import SectionHtml from "@/components/SectionHtml";
 import RichTextEditor from "@/components/RichTextEditor";
+import AdminTopBar from "@/components/AdminTopBar";
 
 interface ParsedSectionResult {
   sectionKey: string;
@@ -395,20 +394,7 @@ export default function NodeAdminPage() {
 
   return (
     <div className="min-h-screen bg-otm-light">
-      <header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Image src="/otm-logo.png" alt="OTM" width={80} height={32} className="h-8 w-auto" />
-          <span className="font-outfit font-semibold text-otm-navy text-sm">
-            Admin
-          </span>
-          <Link href="/admin" className="text-xs text-otm-teal hover:underline">
-            &larr; All nodes
-          </Link>
-        </div>
-        <Link href="/portal/strategy" className="text-xs text-otm-teal hover:underline">
-          View client portal &rarr;
-        </Link>
-      </header>
+      <AdminTopBar crumbs={[{ label: node.displayName }]} />
 
       <main className="max-w-6xl mx-auto px-6 py-8">
         {/* .docx out-of-sync banner */}

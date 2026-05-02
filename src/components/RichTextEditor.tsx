@@ -4,6 +4,7 @@ import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Underline from "@tiptap/extension-underline";
 import Link from "@tiptap/extension-link";
+import Placeholder from "@tiptap/extension-placeholder";
 import Table from "@tiptap/extension-table";
 import TableRow from "@tiptap/extension-table-row";
 import TableHeader from "@tiptap/extension-table-header";
@@ -41,6 +42,10 @@ export default function RichTextEditor({ initialHtml, onChange, placeholder }: P
       Link.configure({
         openOnClick: false,
         HTMLAttributes: { target: "_blank", rel: "noopener" },
+      }),
+      Placeholder.configure({
+        placeholder: placeholder || "Start writing…",
+        showOnlyWhenEditable: true,
       }),
       Table.configure({ resizable: true }),
       TableRow,
@@ -146,11 +151,12 @@ export default function RichTextEditor({ initialHtml, onChange, placeholder }: P
         {btn(false, () => editor.chain().focus().undo().run(), "Undo", <Undo2 size={14} />)}
         {btn(false, () => editor.chain().focus().redo().run(), "Redo", <Redo2 size={14} />)}
       </div>
-      <EditorContent
-        editor={editor}
-        className="prose-otm min-h-[400px] max-h-[700px] overflow-y-auto px-6 py-4"
-        data-placeholder={placeholder}
-      />
+      <div
+        className="prose-otm min-h-[400px] max-h-[700px] overflow-y-auto px-6 py-4 cursor-text"
+        onClick={() => editor.chain().focus().run()}
+      >
+        <EditorContent editor={editor} />
+      </div>
     </div>
   );
 }
